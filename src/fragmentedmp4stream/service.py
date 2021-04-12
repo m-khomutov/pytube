@@ -72,7 +72,7 @@ def start(argv):
     params={}
     for opt, arg in opts:
         if opt in ('-h','--help'):
-            print("params:\n\t -p(--port) port to bind(def 4555)\n\t -r(--root) files directory(req)")
+            print("params:\n\t -p(--port) port to bind(def 4555)\n\t -r(--root) files directory(req)\n\t -v(--verb) be verbose\n\t -h(--help) this help")
             sys.exit()
         elif opt in('-p','--port'):
             port = int(arg)
