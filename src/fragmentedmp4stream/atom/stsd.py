@@ -1,5 +1,5 @@
 from .atom import Box, FullBox
-from . import esds, avcc, pasp
+from . import esds, avcc, hvcc, pasp, fiel
 
 class SampleEntry(Box):
     def __init__(self, *args, **kwargs):
@@ -30,17 +30,28 @@ class VisualSampleEntry(SampleEntry):
             self._readsome(f, 2)
             left = self.size - (f.tell()-self.position)
             self.avcc = None
+            self.hvcc = None
             self.pasp = None
+            self.fiel = None
             while left > 0:
                 box = Box(file=f, depth=self._depth + 1)
                 if box.type == 'avcC':
                     f.seek(box.position)
                     self.avcc = avcc.Box(file=f, depth=self._depth + 1)
                     left -= self.avcc.size
+                elif box.type == 'hvcC':
+                    f.seek(box.position)
+                    self.hvcc = hvcc.Box(file=f, depth=self._depth + 1)
+                    left -= self.hvcc.size
                 elif box.type == 'pasp':
                     f.seek(box.position)
                     self.pasp = pasp.Box(file=f, depth=self._depth + 1)
                     left -= self.pasp.size
+                elif box.type == 'fiel':
+                    f.seek(box.position)
+                    self.fiel = fiel.Box(file=f, depth=self._depth + 1)
+                    left -= self.fiel.size
+                    print("fiel:", self.fiel)
                 else:
                     break
     def __repr__(self):
@@ -53,8 +64,12 @@ class VisualSampleEntry(SampleEntry):
                                    " depth:" + str(self.colordepth)
         if self.avcc != None:
             ret += "\n" + self.avcc.__repr__()
+        if self.hvcc != None:
+            ret += "\n" + self.hvcc.__repr__()
         if self.pasp != None:
             ret += "\n" + self.pasp.__repr__()
+        if self.fiel != None:
+            ret += "\n" + self.fiel.__repr__()
         return ret
     def encode(self):
         ret = super().encode()
@@ -70,8 +85,12 @@ class VisualSampleEntry(SampleEntry):
         ret += (0xffff).to_bytes(2, byteorder='big')
         if self.avcc != None:
             ret += self.avcc.encode()
+        if self.hvcc != None:
+            ret += self.hvcc.encode()
         if self.pasp != None:
             ret += self.pasp.encode()
+        if self.fiel != None:
+            ret += self.fiel.encode()
         return ret
 
 class AudioSampleEntry(SampleEntry):
