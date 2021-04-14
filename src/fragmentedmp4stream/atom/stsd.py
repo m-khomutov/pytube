@@ -1,5 +1,12 @@
 from .atom import Box, FullBox
 from . import esds, avcc, hvcc, pasp, fiel
+from enum import IntEnum
+
+
+class VideoStreamType(IntEnum):
+    Unknown = 0
+    AVC = 1
+    HEVC = 2
 
 class SampleEntry(Box):
     def __init__(self, *args, **kwargs):
@@ -51,7 +58,6 @@ class VisualSampleEntry(SampleEntry):
                     f.seek(box.position)
                     self.fiel = fiel.Box(file=f, depth=self._depth + 1)
                     left -= self.fiel.size
-                    print("fiel:", self.fiel)
                 else:
                     break
     def __repr__(self):
@@ -133,6 +139,7 @@ class Box(FullBox):
         super().__init__(*args, **kwargs)
         f = kwargs.get("file", None)
         self.entries = []
+        self.vstream_type = VideoStreamType.Unknown
         if f != None:
             self._readfile(f, kwargs.get('hdlr', None))
     def __repr__(self):
@@ -145,7 +152,12 @@ class Box(FullBox):
         if hdlr != None:
             for i in range(count):
                 if hdlr == 'vide':
-                    self.entries.append(VisualSampleEntry(file=f,depth=self._depth+1))
+                    entry = VisualSampleEntry(file=f,depth=self._depth+1)
+                    if entry.avcc != None:
+                        self.vstream_type = VideoStreamType.AVC
+                    elif entry.hvcc != None:
+                        self.vstream_type = VideoStreamType.HEVC
+                    self.entries.append(entry)
                 elif hdlr == 'soun':
                     self.entries.append(AudioSampleEntry(file=f,depth=self._depth+1))
     def encode(self):

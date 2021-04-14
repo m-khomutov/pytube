@@ -18,23 +18,23 @@ class Box(FullBox):
 
     def _readfile(self, f):
         if self.version == 1:
-            self.creationTime = int.from_bytes(self._readsome(f, 8), "big");
-            self.modificationTime = int.from_bytes(self._readsome(f, 8), "big");
-            self.timescale = int.from_bytes(self._readsome(f, 4), "big");
-            self.duration = int.from_bytes(self._readsome(f, 8), "big");
+            self.creationTime = int.from_bytes(self._readsome(f, 8), "big")
+            self.modificationTime = int.from_bytes(self._readsome(f, 8), "big")
+            self.timescale = int.from_bytes(self._readsome(f, 4), "big")
+            self.duration = int.from_bytes(self._readsome(f, 8), "big")
         else:
-            self.creationTime = int.from_bytes(self._readsome(f, 4), "big");
-            self.modificationTime = int.from_bytes(self._readsome(f, 4), "big");
-            self.timescale = int.from_bytes(self._readsome(f, 4), "big");
-            self.duration = int.from_bytes(self._readsome(f, 4), "big");
+            self.creationTime = int.from_bytes(self._readsome(f, 4), "big")
+            self.modificationTime = int.from_bytes(self._readsome(f, 4), "big")
+            self.timescale = int.from_bytes(self._readsome(f, 4), "big")
+            self.duration = int.from_bytes(self._readsome(f, 4), "big")
 
-        l = BitArray(self._readsome(f, 2));
+        l = BitArray(self._readsome(f, 2))
         self.language = ""
         for i in range(3):
             b=5*i+1
             e=b+5
             self.language += chr(int(l[b:e].bin, 2)+0x60)
-        self._readsome(f, 2);
+        self._readsome(f, 2)
 
     def encode(self):
         ret = super().encode()

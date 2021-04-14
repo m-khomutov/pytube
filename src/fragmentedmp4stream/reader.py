@@ -113,6 +113,7 @@ class Reader:
         self.samples_info = {}
         self.timescale = {}
         self.trakID = 1
+        self.vstream_type = stsd.VideoStreamType.Unknown
         self.file = open(fname, "rb")
         try:
             while True:
@@ -186,6 +187,8 @@ class Reader:
             elif box.type == 'stsd':
                 self.file.seek(box.position)
                 box = stsd.Box(file=self.file, depth=depth, hdlr=self.hdlr)
+                if self.hdlr == 'vide':
+                    self.vstream_type = box.vstream_type
             elif box.type == 'stsz':
                 self.file.seek(box.position)
                 box = stsz.Box(file=self.file, depth=depth, hdlr=self.hdlr)

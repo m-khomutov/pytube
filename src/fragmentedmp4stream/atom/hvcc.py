@@ -1,4 +1,54 @@
 from .atom import Box
+from bitstring import ConstBitStream
+from enum import IntEnum
+
+
+class NaluHeader:
+    def __init__(self, frame):
+        bits = ConstBitStream(frame[4:6])
+        self.forbidden_zero_bit = bits.read('uint:1')
+        self.nal_unit_type = bits.read('uint:6')
+        self.nuh_layer_id = bits.read('uint:6')
+        self.nuh_temporal_id_plus1 = bits.read('uint:3')
+
+class NaluType(IntEnum):
+    TRAIL_N = 0
+    TRAIL_R = 1
+    TSA_N = 2
+    TSA_R = 3
+    STSA_N = 4
+    STSA_R = 5
+    RADL_N = 6
+    RADL_R = 7
+    RASL_N = 8
+    RASL_R = 9
+    RSV_VCL_N10 = 10
+    RSV_VCL_R11 = 11
+    RSV_VCL_N12 = 12
+    RSV_VCL_R13 = 13
+    RSV_VCL_N14 = 14
+    RSV_VCL_R15 = 15
+    BLA_W_LP = 16
+    BLA_W_RADL = 17
+    BLA_N_LP = 18
+    IDR_W_RADL = 19
+    IDR_N_LP = 20
+    CRA_NUT = 21
+    RSV_IRAP_VCL22 = 22
+    RSV_IRAP_VCL23 = 23
+    VPS_NUT = 32
+    SPS_NUT = 33
+    PPS_NUT = 34
+    AUD_NUT = 35
+    EOS_NUT = 36
+    EOB_NUT = 37
+    FD_NUT = 38
+    PREFIX_SEI_NUT = 39
+    SUFFIX_SEI_NUT = 40
+
+    @staticmethod
+    def keyframe(header):
+        return header.nal_unit_type >= NaluType.BLA_W_LP and header.nal_unit_type <= NaluType.RSV_IRAP_VCL23
 
 class ConfigSet:
     def __init__(self, f):

@@ -12,6 +12,10 @@ if __name__ == "__main__":
     main(sys.argv[1:])
 ```
 
+**videocodec support**
+* h264
+* h265
+
 **parameters**
 * -p(--port) port to bind(def *4555*)
 * -r(--root) files directory(required) - path to seek required mp4 file
@@ -20,7 +24,7 @@ if __name__ == "__main__":
 
 **installation**
 
-`pip install fragmented-mp4stream-pkg==0.0.1`
+`pip install fragmented-mp4stream-pkg==0.0.2`
 
 **url**
 

@@ -1,5 +1,6 @@
+import sys
 from .atom.atom import Box
-from .atom import trex, stco, stsc, mfhd, stts, mdat, trun, tfhd, stsz
+from .atom import trex, stco, stsc, mfhd, stts, stsd, mdat, trun, tfhd, stsz, hvcc
 
 
 class Writer:
@@ -107,8 +108,7 @@ class Writer:
             try:
                 vframe = self.reader.nextSample(trakid)
                 if len(vframe.data) == vframe.size:
-                    vframe_type = vframe.data[4] & 0x1f
-                    if vframe_type != 1 and not self.mdat.empty():
+                    if self._keyframe(vframe.data) and not self.mdat.empty():
                         self.first_vframe = vframe
                         self.chunk_duration /= self.reader.timescale[trakid]
                         break
@@ -137,3 +137,9 @@ class Writer:
             except:
                 break
         return asize
+    def _keyframe(self, frame):
+        if self.reader.vstream_type == stsd.VideoStreamType.AVC:
+            return frame[4] & 0x1f != 1
+        elif self.reader.vstream_type == stsd.VideoStreamType.HEVC:
+            return hvcc.NaluType.keyframe(hvcc.NaluHeader(frame))
+        raise sys.TypeError
