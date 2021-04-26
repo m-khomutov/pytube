@@ -2,10 +2,15 @@ import sys
 from .atom.atom import Box
 from .atom import trex, stco, stsc, mfhd, stts, stsd, mdat, trun, tfhd, stsz, hvcc
 
+class FragmentData:
+    def __init__(self, offset, size):
+        self.offset=offset
+        self.size=size
 
 class Writer:
     def __init__(self, reader):
         self.last_chunk = False
+        self._sequence_number = 1
         self.reader = reader
         self._set_ftyp()
         self._set_moov()
@@ -15,9 +20,17 @@ class Writer:
         if self.last_chunk == True:
             raise FragmentationFinished("done")
         self._set_moof()
-        self.moof.find('mfhd')[0].sequence_number += 1
+        self.moof.find('mfhd')[0].sequence_number = self._sequence_number
+        self._sequence_number += 1
         ret = self.moof.encode() + self.mdat.encode()
         return ret
+    def fragment_moof(self):
+        if self.last_chunk == True:
+            raise FragmentationFinished("done")
+        self._set_moof()
+        self.moof.find('mfhd')[0].sequence_number = self._sequence_number
+        self._sequence_number += 1
+        return self.moof.encode()
     def _set_ftyp(self):
         ftyp = self.reader.find('ftyp')
         if len(ftyp) != 1:
@@ -60,6 +73,7 @@ class Writer:
             self.moov.store(trex.Box(trakid=id), 'mvex')
         self.base_offset += self.moov.fullsize()
     def _set_moof(self):
+        self.fragment_data=[]
         self.moof= Box(type='moof')
         self.moof.store(mfhd.Box())
         tf_flags = tfhd.Flags.BaseDataOffsetPresent | tfhd.Flags.DefaultSampleDurationPresent | tfhd.Flags.DefaultSampleFlagsPresent
@@ -103,6 +117,7 @@ class Writer:
             else:
                 trun_box.add_sample(size=self.first_vframe.size)
             self.mdat.append(self.first_vframe.data)
+            self.fragment_data.append(FragmentData(self.first_vframe.offset, self.first_vframe.size))
             vsize += self.first_vframe.size
         while True:
             try:
@@ -117,6 +132,7 @@ class Writer:
                     else:
                         trun_box.add_sample(size=vframe.size)
                     self.mdat.append(vframe.data)
+                    self.fragment_data.append(FragmentData(vframe.offset, vframe.size))
                     self.chunk_duration += vframe.duration
                     vsize += vframe.size
             except:
@@ -134,6 +150,7 @@ class Writer:
                 trun_box.add_sample(size=sample.size, duration=sample.duration)
                 self.mdat.append(sample.data)
                 asize += sample.size
+                self.fragment_data.append(FragmentData(sample.offset, sample.size))
             except:
                 break
         return asize

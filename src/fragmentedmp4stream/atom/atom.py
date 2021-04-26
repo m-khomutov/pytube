@@ -13,8 +13,10 @@ class BoxIterator:
 
 class Box():
     def __init__(self, *args, **kwargs):
-        self._utype = []
-        self._storage = []
+        self._utype=[]
+        self._storage=[]
+        self._depth=0
+        self.position=0
         f = kwargs.get("file", None)
         if f != None:
             self._fromfile( f, kwargs.get("depth", None) )

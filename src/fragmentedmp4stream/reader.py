@@ -143,6 +143,9 @@ class Reader:
         self.file.seek(sample.offset)
         sample.data = self.file.read(sample.size)
         return sample
+    def sample(self, offset, size):
+        self.file.seek(offset)
+        return self.file.read(size)
     def hasCT(self, trakid):
         return self.samples_info[trakid].ctts != None
     def _readBox(self, depth):

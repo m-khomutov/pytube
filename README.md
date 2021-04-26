@@ -26,15 +26,42 @@ if __name__ == "__main__":
 
 `pip install fragmented-mp4stream-pkg==0.0.2`
 
-**url**
+**streams**
+* json list of available files
+  >`http://ip:port/`
+* naked fragmented mp4
+  >`http://ip:port/filename_without_extension`
+* hls container with fragmented mp4
+  >`http://ip:port/file_with_m3u_extension`
 
-`http://ip:port/file_without_extension`
-
-**example**
+**example1**
 
 * service
->`python3 mp4stream.py -r ~/video/`
+  * python3 mp4stream.py -r ~/video/
 * client
->`ffplay http://192.168.250.229:4555/toystory20`
+  * ffplay http://192.168.250.229:4555/
+    >mp4 file list of ~/video/
+    ```json
+    [
+      "MTV.mp4",
+      "Wingsuit.mp4",
+      "toystory.mp4",
+      "nuts720p_4Mb.mp4"
+    ]```
 
-Service streams ~/video/toystory20.mp4
+**example2**
+
+* service
+  * python3 mp4stream.py -r ~/video/
+* client
+  * ffplay http://192.168.250.229:4555/toystory
+    >`~/video/toystory.mp4 - fragmented mp4`
+
+
+**example3**
+
+* service
+  * python3 mp4stream.py -r ~/video/`
+* client
+  * ffplay http://192.168.250.229:4555/toystory.m3u
+    >`~/video/toystory20.mp4 - fragmented mp4 in hls container`
