@@ -14,9 +14,11 @@ from .segmenter import Segmenter
 def MakeHandler(params):
     class Handler(BaseHTTPRequestHandler, object):
         def __init__(self, *args, **kwargs):
-            self._root = params.get("root", ".")
-            self._verbal = params.get("verb", False)
-            self.segmenters = params.get("segmenters", None)
+            self._root=params.get("root", ".")
+            self._segment_floor=int(params.get("segment", "6"))
+            self._verbal=params.get("verb", False)
+            self._cache=params.get("cache", False)
+            self.segmenters=params.get("segmenters", None)
             super(Handler, self).__init__(*args, **kwargs)
         def _stream_filelist(self):
             self.send_response(200)
@@ -47,8 +49,8 @@ def MakeHandler(params):
             self.end_headers()
             segmenter = self.segmenters.get(self.path)
             if segmenter == None:
-                segmenter = Segmenter(self._filename, self.path, self.server.server_address, self._verbal)
-                self.segmenters[self.path] = Segmenter(self._filename, self.path, self.server.server_address, self._verbal)
+                segmenter=Segmenter(self._filename, self.path, self.server.server_address, self._segment_floor, self._cache, self._verbal)
+                self.segmenters[self.path] = segmenter
             self.wfile.write(segmenter.playlist().encode())
         def _stream_segment(self):
             idx=self.path.rfind('_')
@@ -118,7 +120,7 @@ class Service:
 
 def start(argv):
     try:
-        opts,args=getopt.getopt(argv,"hp:r:v",["help","port=","root=","verb"])
+        opts,args=getopt.getopt(argv,"hp:r:s:cv",["help","port=","root=","segment=","cache","verb"])
     except getopt.GetoptError as e:
         print(e)
         sys.exit()
@@ -126,12 +128,21 @@ def start(argv):
     params={}
     for opt, arg in opts:
         if opt in ('-h','--help'):
-            print("params:\n\t -p(--port) port to bind(def 4555)\n\t -r(--root) files directory(req)\n\t -v(--verb) be verbose\n\t -h(--help) this help")
+            print("params:\n\t-p(--port) port to bind(def 4555)\n\t"
+                  "-r(--root) files directory(req)\n\t"
+                  "-s(--segment) segment duration floor\n\t"
+                  "-c(--cache) cache segmentation as .*.cache files\n\t"
+                  "-v(--verb) be verbose\n\t"
+                  "-h(--help) this help")
             sys.exit()
         elif opt in('-p','--port'):
             port = int(arg)
         elif opt in('-r','--root'):
             params['root'] = arg
+        elif opt in('-s','--segment'):
+            params['segment'] = int(arg)
+        elif opt in('-c','--cache'):
+            params['cache'] = True
         elif opt in('-v','--verb'):
             params['verb'] = True
     Service().run(port, params)

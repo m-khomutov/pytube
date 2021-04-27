@@ -13,9 +13,11 @@ class Segment:
         self.duration=duration
 
 class Segmenter:
-    def __init__(self, filename, path, server_address, verbal):
+    def __init__(self, filename, path, server_address, segment_duration, save_to_cache, verbal):
         self._filename=filename
         self.segment_url='http://'+platform.node()+':'+str(server_address[1])+path;
+        self._segment_duration = segment_duration
+        self._save_to_cache = save_to_cache
         self.media_segments={}
         self.reader=Reader(filename)
         if verbal:
@@ -46,7 +48,7 @@ class Segmenter:
                 segment.moof.append(self.writer.fragment_moof())
                 segment.data.append(self.writer.fragment_data)
                 segment.duration += self.writer.chunk_duration
-                if segment.duration > 6 or self.writer.last_chunk == True:
+                if segment.duration > self._segment_duration or self.writer.last_chunk == True:
                     if targetduration < segment.duration:
                         targetduration = segment.duration
                     self.media_segments[segment.seqnum] = segment

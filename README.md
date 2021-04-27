@@ -17,8 +17,10 @@ if __name__ == "__main__":
 * h265
 
 **parameters**
-* -p(--port) port to bind(def *4555*)
+* -p(--port) port to bind(def. *4555*)
 * -r(--root) files directory(required) - path to seek required mp4 file
+* -s(--segment) segment duration sec.(def. *6*) - floor limit of segment duration
+* -c(--cache) cache segmentation - save segmentation as .*.cache files
 * -v(--verb) be verbose (show structure of required mp4 file)
 * -h(--help) this help
 
