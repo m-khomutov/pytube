@@ -11,14 +11,12 @@ class Box(FullBox):
         else:
             self.type = 'stco'
             self.size = 16
-
     def __repr__(self):
         ret = super().__repr__() + " offsets:[ "
         for off in self.entries:
             ret += str(off) + ' '
         ret += "]"
         return ret
-
     def _readfile(self, f):
         count = int.from_bytes(self._readsome(f, 4), "big")
         for i in range(count):

@@ -1,5 +1,5 @@
 from .atom.atom import Box
-from .atom import ftyp, stco, stsc, mvhd, tkhd, mdhd, co64, stts, hdlr, ctts, vmhd, trun, stsd, smhd, dref, stsz
+from .atom import ftyp, stco, stsc, mvhd, tkhd, mdhd, co64, stts, hdlr, ctts, vmhd, trun, stsd, smhd, dref, stsz, mfhd, tfhd
 
 
 class FragmentationFinished(Exception):
@@ -211,6 +211,15 @@ class Reader:
                 self.file.seek(box.position)
                 box = co64.Box(file=self.file, depth=depth, hdlr=self.hdlr)
                 self.samples_info[self.trakID].setStco(box.entries)
+            elif box.type == 'mfhd':
+                self.file.seek(box.position)
+                box = mfhd.Box(file=self.file, depth=depth)
+            elif box.type == 'tfhd':
+                self.file.seek(box.position)
+                box = tfhd.Box(file=self.file, depth=depth)
+            elif box.type == 'trun':
+                self.file.seek(box.position)
+                box = trun.Box(file=self.file, depth=depth)
             self.file.seek(box.position + box.size)
         else:
             boxSize = box.size - (self.file.tell() - box.position)

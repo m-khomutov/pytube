@@ -1,6 +1,7 @@
 import sys
 from .atom.atom import Box
 from .atom import trex, stco, stsc, mfhd, stts, stsd, mdat, trun, tfhd, stsz, hvcc
+from .reader import FragmentationFinished
 
 class FragmentData:
     def __init__(self, offset, size):
@@ -30,7 +31,7 @@ class Writer:
         self._set_moof()
         self.moof.find('mfhd')[0].sequence_number = self._sequence_number
         self._sequence_number += 1
-        return self.moof.encode()
+        return self.moof
     def _set_ftyp(self):
         ftyp = self.reader.find('ftyp')
         if len(ftyp) != 1:
@@ -74,13 +75,14 @@ class Writer:
         self.base_offset += self.moov.fullsize()
     def _set_moof(self):
         self.fragment_data=[]
-        self.moof= Box(type='moof')
+        self.moof=Box(type='moof')
         self.moof.store(mfhd.Box())
         tf_flags = tfhd.Flags.BaseDataOffsetPresent | tfhd.Flags.DefaultSampleDurationPresent | tfhd.Flags.DefaultSampleFlagsPresent
         trun_boxes = {}
         mdat_size = {}
         for id in self.trakmap.keys():
             traf = Box(type='traf')
+            self.moof.store(traf)
             sample_flags = trex.SampleFlags(1, True)
             tr_flags = trun.Flags.DataOffsetPresent | trun.Flags.FirstSampleFlagsPresent | trun.Flags.SampleSizePresent
             if self.trakmap[id] == 'vide':
@@ -101,7 +103,6 @@ class Writer:
                 mdat_size[id]=self._set_video_chunk(id, trun_boxes[id])
             elif self.trakmap[id] == 'soun':
                 mdat_size[id]=self._set_audio_sample(id, trun_boxes[id])
-            self.moof.store(traf)
         trun_data_offset = self.moof.fullsize() + 8
         for id in trun_boxes.keys():
             trun_boxes[id].data_offset = trun_data_offset
@@ -136,6 +137,7 @@ class Writer:
                     self.chunk_duration += vframe.duration
                     vsize += vframe.size
             except:
+                self.chunk_duration /= self.reader.timescale[trakid]
                 self.last_chunk = True
                 break
         return vsize

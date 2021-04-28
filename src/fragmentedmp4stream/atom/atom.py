@@ -29,7 +29,8 @@ class Box():
         ret = ""
         for i in range(self._depth * 2):
             ret += " "
-        ret += "%s pos:%i size:%i" % (self.type, self.position, self.size)
+        fullsz = self.fullsize()
+        ret += "%s pos:%i size:%i" % (self.type, self.position, fullsz)
         if len(self._utype) == 16:
             ret += " utype:" + str(self._utype)
 
@@ -43,6 +44,7 @@ class Box():
         return BoxIterator(self)
     def store(self, box, parent_type = ''):
         if parent_type == '':
+            box._depth = self._depth + 2
             self._storage.append( box )
         else:
             parent = self.find( parent_type )
@@ -61,7 +63,8 @@ class Box():
     def container(self):
         return self.type == 'moov' or self.type == 'trak' or self.type == 'edts' or \
                self.type == 'mdia' or self.type == 'minf' or self.type == 'dinf' or \
-               self.type == 'stbl' or self.type == 'mvex'
+               self.type == 'stbl' or self.type == 'mvex' or self.type == 'moof' or \
+               self.type == 'traf'
     def depth(self):
         return self._depth
     def encode(self):
