@@ -9,7 +9,6 @@ import math
 class Segment:
     def __init__(self, seqnum, duration):
         self.moof=[]
-        self.data=[]
         self.seqnum=seqnum
         self.duration=duration
 
@@ -37,8 +36,10 @@ class Segmenter:
         for i in range(len(self.media_segments[index].moof)):
             ret += self.media_segments[index].moof[i].encode()
             mdat_box = mdat.Box(type='mdat')
-            for dt in self.media_segments[index].data[i]:
-                mdat_box.append(self.reader.sample(dt.offset, dt.size))
+            trun=self.media_segments[index].moof[i].find('trun')
+            for tr in trun:
+                for sample in tr.samples:
+                    mdat_box.append(self.reader.sample(sample.initial_offset, sample.size))
             ret += mdat_box.encode()
         return ret
     def _prepare_playlist(self):
@@ -48,7 +49,6 @@ class Segmenter:
         while True:
             try:
                 segment.moof.append(self.writer.fragment_moof())
-                segment.data.append(self.writer.fragment_data)
                 segment.duration += self.writer.chunk_duration
                 if segment.duration > self._segment_duration or self.writer.last_chunk == True:
                     if targetduration < segment.duration:

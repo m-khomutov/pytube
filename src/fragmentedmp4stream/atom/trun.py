@@ -18,11 +18,12 @@ class Flags(IntFlag):
     SampleCompositionTimeOffsetsPresent = 0x000800
 
 class Sample:
-    def __init__(self, duration, size, flags, composition_time_offset):
+    def __init__(self, duration, size, flags, composition_time_offset, initial_offset):
         self.duration = duration
         self.size = size
         self.flags = flags
         self.composition_time_offset = composition_time_offset
+        self.initial_offset = initial_offset
     def encode(self):
         ret = b''
         if self.duration != None:
@@ -82,7 +83,7 @@ class Box(FullBox):
         if Flags.SampleCompositionTimeOffsetsPresent in self.tr_flags:
             sample_time_offsets = kwargs.get('timeoffsets', 0)
             self.size += 4
-        self.samples.append(Sample(sample_duration, sample_size, sample_flags, sample_time_offsets))
+        self.samples.append(Sample(sample_duration, sample_size, sample_flags, sample_time_offsets, kwargs.get('initialoffset', 0)))
     def __repr__(self):
         ret=super().__repr__()
         if Flags.DataOffsetPresent in self.tr_flags:

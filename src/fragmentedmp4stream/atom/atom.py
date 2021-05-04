@@ -83,7 +83,7 @@ class Box():
     def fullsize(self):
         ret = self.size
         for box in self._storage:
-            ret += box._calcsize()
+            ret += box.fullsize()
         return ret
     def _readsome(self, f, chunk):
         b = f.read(chunk)
@@ -97,11 +97,6 @@ class Box():
         if self.size == 1: int.from_bytes(self._readsome(f, 8), "big")
         if self.type == 'uuid': self._utype = self._readsome(f, 16)
         self._depth = depth
-    def _calcsize(self):
-        ret = self.size
-        for box in self._storage:
-            ret += box._calcsize()
-        return ret
 
 class FullBox(Box):
     def __init__(self, *args, **kwargs):

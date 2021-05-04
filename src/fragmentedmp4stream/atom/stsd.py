@@ -59,7 +59,9 @@ class VisualSampleEntry(SampleEntry):
                     self.fiel = fiel.Box(file=f, depth=self._depth + 1)
                     left -= self.fiel.size
                 else:
-                    break
+                    f.seek(box.position+box.size)
+                    left -= box.size
+                    self.size -= box.size
     def __repr__(self):
         ret = super().__repr__() + " width:" + str(self.width) + \
                                    " height:" + str(self.height) + \
@@ -147,6 +149,10 @@ class Box(FullBox):
         for s in self.entries:
             ret += "\n" + s.__repr__()
         return ret
+    def normalize(self):
+        self.size=16
+        for entry in self.entries:
+            self.size+=entry.size
     def _readfile(self, f, hdlr):
         count = int.from_bytes(self._readsome(f, 4), "big")
         if hdlr != None:

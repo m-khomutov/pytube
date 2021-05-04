@@ -3,11 +3,6 @@ from .atom.atom import Box
 from .atom import trex, stco, stsc, mfhd, stts, stsd, mdat, trun, tfhd, stsz, hvcc
 from .reader import FragmentationFinished
 
-class FragmentData:
-    def __init__(self, offset, size):
-        self.offset=offset
-        self.size=size
-
 class Writer:
     def __init__(self, reader):
         self.last_chunk = False
@@ -64,7 +59,10 @@ class Writer:
             otrak.store(tr.find('dref')[0],'dinf')
             otrak.store(Box(type='stbl'), 'minf')
             otrak.store(stts.Box(), 'stbl')
-            otrak.store(tr.find('stsd')[0],'stbl')
+            stsd=tr.find('stsd')
+            if len(stsd) > 0:
+                stsd[0].normalize()
+                otrak.store(stsd[0],'stbl')
             otrak.store(stsz.Box(), 'stbl')
             otrak.store(stsc.Box(), 'stbl')
             otrak.store(stco.Box(), 'stbl')
@@ -74,7 +72,6 @@ class Writer:
             self.moov.store(trex.Box(trakid=id), 'mvex')
         self.base_offset += self.moov.fullsize()
     def _set_moof(self):
-        self.fragment_data=[]
         self.moof=Box(type='moof')
         self.moof.store(mfhd.Box())
         tf_flags = tfhd.Flags.BaseDataOffsetPresent | tfhd.Flags.DefaultSampleDurationPresent | tfhd.Flags.DefaultSampleFlagsPresent
@@ -114,11 +111,10 @@ class Writer:
         vsize = 0
         if self.first_vframe.size > 0:
             if self.first_vframe.composition_time != None:
-                trun_box.add_sample(size=self.first_vframe.size, timeoffsets=self.first_vframe.composition_time)
+                trun_box.add_sample(size=self.first_vframe.size, timeoffsets=self.first_vframe.composition_time, initialoffset=self.first_vframe.offset)
             else:
-                trun_box.add_sample(size=self.first_vframe.size)
+                trun_box.add_sample(size=self.first_vframe.size, initialoffset=self.first_vframe.offset)
             self.mdat.append(self.first_vframe.data)
-            self.fragment_data.append(FragmentData(self.first_vframe.offset, self.first_vframe.size))
             vsize += self.first_vframe.size
         while True:
             try:
@@ -129,11 +125,10 @@ class Writer:
                         self.chunk_duration /= self.reader.timescale[trakid]
                         break
                     if vframe.composition_time != None:
-                        trun_box.add_sample(size=vframe.size, timeoffsets=vframe.composition_time)
+                        trun_box.add_sample(size=vframe.size, timeoffsets=vframe.composition_time, initialoffset=vframe.offset)
                     else:
-                        trun_box.add_sample(size=vframe.size)
+                        trun_box.add_sample(size=vframe.size, initialoffset=vframe.offset)
                     self.mdat.append(vframe.data)
-                    self.fragment_data.append(FragmentData(vframe.offset, vframe.size))
                     self.chunk_duration += vframe.duration
                     vsize += vframe.size
             except:
@@ -149,10 +144,9 @@ class Writer:
                 sample = self.reader.nextSample(trakid)
                 if self.last_chunk == False:
                     duration += sample.duration / self.reader.timescale[trakid]
-                trun_box.add_sample(size=sample.size, duration=sample.duration)
+                trun_box.add_sample(size=sample.size, duration=sample.duration, initialoffset=sample.offset)
                 self.mdat.append(sample.data)
                 asize += sample.size
-                self.fragment_data.append(FragmentData(sample.offset, sample.size))
             except:
                 break
         return asize
