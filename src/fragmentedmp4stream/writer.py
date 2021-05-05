@@ -1,12 +1,12 @@
 import sys
-from .atom.atom import Box
+from .atom.atom import Box, FullBox
 from .atom import trex, stco, stsc, mfhd, stts, stsd, mdat, trun, tfhd, stsz, hvcc
 from .reader import FragmentationFinished
 
 class Writer:
     def __init__(self, reader):
         self.last_chunk = False
-        self._sequence_number = 1
+        self._sequence_number = 0
         self.reader = reader
         self._set_ftyp()
         self._set_moov()
@@ -55,6 +55,8 @@ class Writer:
                 otrak.store(tr.find('vmhd')[0],'minf')
             elif hdlr.handler_type == 'soun':
                 otrak.store(tr.find('smhd')[0], 'minf')
+            elif hdlr.handler_type == 'text':
+                otrak.store(FullBox(type='nmhd'), 'minf')
             otrak.store(Box(type='dinf'), 'minf')
             otrak.store(tr.find('dref')[0],'dinf')
             otrak.store(Box(type='stbl'), 'minf')
@@ -88,6 +90,10 @@ class Writer:
             elif self.trakmap[id] == 'soun':
                 sample_flags = trex.SampleFlags(2, False)
                 tr_flags = trun.Flags.DataOffsetPresent | trun.Flags.SampleDurationPresent | trun.Flags.SampleSizePresent
+            elif self.trakmap[id] == 'text':
+                tf_flags = tfhd.Flags.BaseDataOffsetPresent
+                tr_flags = trun.Flags.DataOffsetPresent | trun.Flags.SampleSizePresent | trun.Flags.SampleDurationPresent
+                sample_flags = trex.SampleFlags(0, False)
             traf.store(tfhd.Box(flags=tf_flags,
                                 trakid=id,
                                 dataoffset=self.base_offset,
@@ -100,6 +106,8 @@ class Writer:
                 mdat_size[id]=self._set_video_chunk(id, trun_boxes[id])
             elif self.trakmap[id] == 'soun':
                 mdat_size[id]=self._set_audio_sample(id, trun_boxes[id])
+            else:
+                mdat_size[id]=self._set_text_sample(id, trun_boxes[id])
         trun_data_offset = self.moof.fullsize() + 8
         for id in trun_boxes.keys():
             trun_boxes[id].data_offset = trun_data_offset
@@ -150,6 +158,24 @@ class Writer:
             except:
                 break
         return asize
+    def _set_text_sample(self, trakid, trun_box):
+        size = 0
+        duration = 0
+        while duration < self.chunk_duration:
+            try:
+                sample = self.reader.nextSample(trakid)
+                if self.last_chunk == False:
+                    duration += sample.duration / self.reader.timescale[trakid]
+                trun_box.add_sample(size=sample.size, duration=sample.duration, initialoffset=sample.offset)
+                self.mdat.append(sample.data)
+                size += sample.size
+            except:
+                trun_box.add_sample(size=2,duration=int(self.chunk_duration*self.reader.timescale[trakid]))
+                self.mdat.append(int(0).to_bytes(2, 'big'))
+                size=2
+                break
+        return size
+
     def _keyframe(self, frame):
         if self.reader.vstream_type == stsd.VideoStreamType.AVC:
             return frame[4] & 0x1f != 1

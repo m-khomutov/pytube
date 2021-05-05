@@ -18,7 +18,7 @@ class Flags(IntFlag):
     SampleCompositionTimeOffsetsPresent = 0x000800
 
 class Sample:
-    def __init__(self, duration, size, flags, composition_time_offset, initial_offset):
+    def __init__(self, duration, size, flags, composition_time_offset, initial_offset=0):
         self.duration = duration
         self.size = size
         self.flags = flags

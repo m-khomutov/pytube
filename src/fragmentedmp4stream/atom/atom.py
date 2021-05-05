@@ -108,6 +108,7 @@ class FullBox(Box):
         else:
             self.version = kwargs.get("version", 0)
             self.flags = kwargs.get("flags", 0)
+            self.size = 12
     def __repr__(self):
         ret = super().__repr__() + " version:" + str(self.version) + " flags:" + hex(self.flags)
         for s in self._storage:

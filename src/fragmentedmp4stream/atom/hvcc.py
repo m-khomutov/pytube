@@ -1,4 +1,4 @@
-from .atom import Box
+from . import atom
 from bitstring import ConstBitStream
 from enum import IntEnum
 
@@ -84,7 +84,7 @@ class ConfigSet:
             ret += nalu
         return ret
 
-class Box(Box):
+class Box(atom.Box):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.configSets = []

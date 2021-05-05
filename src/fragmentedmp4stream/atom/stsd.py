@@ -1,5 +1,4 @@
-from .atom import Box, FullBox
-from . import esds, avcc, hvcc, pasp, fiel
+from . import atom, esds, avcc, hvcc, pasp, fiel
 from enum import IntEnum
 
 
@@ -8,7 +7,7 @@ class VideoStreamType(IntEnum):
     AVC = 1
     HEVC = 2
 
-class SampleEntry(Box):
+class SampleEntry(atom.Box):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         f = kwargs.get("file", None)
@@ -41,7 +40,7 @@ class VisualSampleEntry(SampleEntry):
             self.pasp = None
             self.fiel = None
             while left > 0:
-                box = Box(file=f, depth=self._depth + 1)
+                box = atom.Box(file=f, depth=self._depth + 1)
                 if box.type == 'avcC':
                     f.seek(box.position)
                     self.avcc = avcc.Box(file=f, depth=self._depth + 1)
@@ -113,7 +112,7 @@ class AudioSampleEntry(SampleEntry):
             self.samplerate = int.from_bytes(self._readsome(f, 4), "big")
             left = self.size - (f.tell()-self.position)
             while left > 0:
-                box = Box(file=f, depth=self._depth + 1)
+                box = atom.Box(file=f, depth=self._depth + 1)
                 if box.type == 'esds':
                     f.seek(box.position)
                     self.esds = esds.Box(file=f, depth=self._depth + 1)
@@ -136,7 +135,132 @@ class AudioSampleEntry(SampleEntry):
             ret += self.esds.encode()
         return ret
 
-class Box(FullBox):
+class StyleRecord:
+    def __init__(self, f):
+        self.start_char=int.from_bytes(f.read(2), 'big')
+        self.end_char=int.from_bytes(f.read(2), 'big')
+        self.font_id=int.from_bytes(f.read(2), 'big')
+        self.face_style_flags=int.from_bytes(f.read(1), 'big')
+        self.font_size=int.from_bytes(f.read(1), 'big')
+        self.text_color=[]
+        for i in range(4):
+            self.text_color.append(int.from_bytes(f.read(1), 'big'))
+    def __repr__(self):
+        ret = 'start=' + str(self.start_char) + ' end=' + str(self.end_char) + ' font-id=' + str(self.font_id) + ' '
+        if self.face_style_flags == 0:
+            ret += 'plain'
+        else:
+            style=''
+            if self.face_style_flags & 1 != 0:
+                style += 'bold'
+            if self.face_style_flags & 2 != 0:
+                if len(style) > 0:
+                    style += '|'
+                style += 'italic'
+            if self.face_style_flags & 4 != 0:
+                if len(style) > 0:
+                    style += '|'
+                style += 'underline'
+            ret += style
+        ret += ' font size=' + str(self.font_size) + ' color=[ '
+        for cl in self.text_color:
+            ret += str(cl) + ' '
+        return ret + ']'
+    def encode(self):
+        ret = self.start_char.to_bytes(2, byteorder='big') + \
+              self.end_char.to_bytes(2, byteorder='big') + \
+              self.font_id.to_bytes(2, byteorder='big') + \
+              self.face_style_flags.to_bytes(1, byteorder='big') + \
+              self.font_size.to_bytes(1, byteorder='big')
+        for cl in self.text_color:
+            ret += cl.to_bytes(1, byteorder='big')
+        return ret
+
+class FontRecord:
+    def __init__(self, f):
+        self.id=int.from_bytes(f.read(2), 'big')
+        namelen=int.from_bytes(f.read(1), 'big')
+        self.name=f.read(namelen).decode("utf-8")
+    def __repr__(self):
+        return 'id=' + str(self.id) + " '" + self.name + "'"
+    def encode(self):
+        return self.id.to_bytes(2, byteorder='big') + len(self.name).to_bytes(1, byteorder='big') + self.name.encode()
+
+class FontTableBox(atom.Box):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.entries=[]
+        f = kwargs.get("file", None)
+        if f != None:
+            count=int.from_bytes(f.read(2), 'big')
+            for i in range(count):
+                self.entries.append(FontRecord(f))
+        else:
+            self.type='ftab'
+            self.size=10
+    def __repr__(self):
+        ret = '['
+        for entry in self.entries:
+            ret += '{' + str(entry) + '}'
+        return ret + ']'
+    def encode(self):
+        ret = super().encode()
+        ret += len(self.entries).to_bytes(2, byteorder='big')
+        for entry in self.entries:
+            ret += entry.encode()
+        return ret
+
+class BoxRecord:
+    def __init__(self, f):
+        self.top=int.from_bytes(f.read(2), 'big')
+        self.left=int.from_bytes(f.read(2), 'big')
+        self.bottom=int.from_bytes(f.read(2), 'big')
+        self.right=int.from_bytes(f.read(2), 'big')
+    def __repr__(self):
+        return 't=' + str(self.top) + ' l=' + str(self.left) + ' b=' + str(self.bottom) + ' r=' + str(self.right)
+    def encode(self):
+        return self.top.to_bytes(2, byteorder='big') + \
+               self.left.to_bytes(2, byteorder='big') + \
+               self.bottom.to_bytes(2, byteorder='big') + \
+               self.right.to_bytes(2, byteorder='big')
+
+class TextSampleEntry(SampleEntry):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        f = kwargs.get("file", None)
+        if f != None:
+            self.display_flags = int.from_bytes(f.read(4), 'big')
+            self.horizontal_justification = int.from_bytes(f.read(1), 'big', signed=True)
+            self.vertical_justification = int.from_bytes(f.read(1), 'big', signed=True)
+            self.background_color_rgba=[]
+            for i in range(4):
+                self.background_color_rgba.append(int.from_bytes(f.read(1), 'big'))
+            self.default_text_box = BoxRecord(f)
+            self.default_style = StyleRecord(f)
+            self.font_table = FontTableBox(file=f, depth=self._depth)
+    def __repr__(self):
+        ret = super().__repr__() + ' flags=' + hex(self.display_flags) + \
+              ' hjust=' + str(self.horizontal_justification) + \
+              ' vjust=' + str(self.vertical_justification)
+        ret += ' bgcolor=[ '
+        for cl in self.background_color_rgba:
+            ret += str(cl) + ' '
+        ret += '] default textbox={' + str(self.default_text_box) + '} default style={' + str(self.default_style) + \
+               '} font table=' + str(self.font_table)
+        return ret
+    def encode(self):
+        ret = super().encode()
+        ret += self.display_flags.to_bytes(4, byteorder='big')
+        ret += self.horizontal_justification.to_bytes(1, byteorder='big', signed=True)
+        ret += self.vertical_justification.to_bytes(1, byteorder='big', signed=True)
+        for cl in self.background_color_rgba:
+            ret += cl.to_bytes(1, byteorder='big')
+        ret += self.default_text_box.encode()
+        ret += self.default_style.encode()
+        ret += self.font_table.encode()
+        return ret
+
+class Box(atom.FullBox):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         f = kwargs.get("file", None)
@@ -166,6 +290,8 @@ class Box(FullBox):
                     self.entries.append(entry)
                 elif hdlr == 'soun':
                     self.entries.append(AudioSampleEntry(file=f,depth=self._depth+1))
+                elif hdlr == 'text':
+                    self.entries.append(TextSampleEntry(file=f,depth=self._depth+1))
     def encode(self):
         ret = super().encode()
         ret += len(self.entries).to_bytes(4, byteorder='big')

@@ -1,7 +1,7 @@
-from .atom import Box
+from . import atom
 
 
-class Box(Box):
+class Box(atom.Box):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         f = kwargs.get("file", None)
@@ -41,15 +41,22 @@ class Box(Box):
         self.level = self._readsome(f, 1)[0]
         self.nalulen = self._readsome(f, 1)[0] & 3 #1 byte = 0; 2 bytes = 1; 4 bytes = 3
         count = self._readsome(f, 1)[0] & 0x1f
+        actual_size=14
         self.sps = []
         for i in range(count):
             len = int.from_bytes(self._readsome(f, 2) ,'big')
             self.sps.append(self._readsome(f, len))
+            actual_size+=(len+2)
         count = self._readsome(f, 1)[0]
+        actual_size+=1
         self.pps = []
         for i in range(count):
             len = int.from_bytes(self._readsome(f, 2) ,'big')
             self.pps.append(self._readsome(f, len))
+            actual_size+=(len+2)
+        self.appendix=b''
+        if actual_size < self.size:
+            self.appendix=self._readsome(f, self.size-actual_size)
 
     def encode(self):
         ret = super().encode()
@@ -68,4 +75,4 @@ class Box(Box):
         for pps in self.pps:
             ret += len(pps).to_bytes(2, byteorder="big")
             ret += pps
-        return ret
+        return ret + self.appendix

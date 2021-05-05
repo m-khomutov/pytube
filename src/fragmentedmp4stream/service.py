@@ -15,7 +15,7 @@ def MakeHandler(params):
     class Handler(BaseHTTPRequestHandler, object):
         def __init__(self, *args, **kwargs):
             self._root=params.get("root", ".")
-            self._segment_floor=int(params.get("segment", "6"))
+            self._segment_floor=float(params.get("segment", "6."))
             self._verbal=params.get("verb", False)
             self._cache=params.get("cache", False)
             self.segmenters=params.get("segmenters", None)
@@ -140,7 +140,7 @@ def start(argv):
         elif opt in('-r','--root'):
             params['root'] = arg
         elif opt in('-s','--segment'):
-            params['segment'] = int(arg)
+            params['segment'] = float(arg)
         elif opt in('-c','--cache'):
             params['cache'] = True
         elif opt in('-v','--verb'):
