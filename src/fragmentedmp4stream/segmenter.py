@@ -25,8 +25,8 @@ class Segmenter:
         if verbal:
             logging.info(self.reader)
         self._prepare_playlist()
-    def playlist(self):
-        return self._playlist
+    def media_playlist(self):
+        return self._media_playlist
     def init(self):
         return self.writer.init()
     def segment(self, index):
@@ -42,6 +42,7 @@ class Segmenter:
                     mdat_box.append(self.reader.sample(sample.initial_offset, sample.size))
             ret += mdat_box.encode()
         return ret
+
     def _prepare_playlist(self):
         self.writer = Writer(self.reader)
         segment=Segment(seqnum=0, duration=.0)
@@ -59,14 +60,14 @@ class Segmenter:
                     break
             except:
                 break
-        self._playlist='#EXTM3U\n' \
+        self._media_playlist='#EXTM3U\n' \
                        '#EXT-X-TARGETDURATION:'+str(math.ceil(targetduration))+\
                        '\n#EXT-X-PLAYLIST-TYPE:VOD\n'+\
                        '#EXT-X-MAP:URI='+self.segment_url+'_init.mp4\n'
         for segment in self.media_segments:
-            self._playlist += '#EXTINF:'+"{:.3f}".format(segment.duration)+'\n'+\
+            self._media_playlist += '#EXTINF:'+"{:.3f}".format(segment.duration)+'\n'+\
                               self.segment_url+'_sn'+str(segment.seqnum)+'.m4s\n'
-        self._playlist += '#EXT-X-ENDLIST\n'
+        self._media_playlist += '#EXT-X-ENDLIST\n'
         if self._save_to_cache:
             self._cache()
     def _cache(self):

@@ -26,7 +26,19 @@ def MakeHandler(params):
             self.end_headers()
             lst=json.dumps([f for f in os.listdir(self._root) if f.endswith('.mp4')])
             self.wfile.write(str.encode(lst))
-        def _stream_file(self):
+        def _stream_file(self, fname):
+            if os.path.isfile(fname):
+                print('sending ', fname)
+                self.send_response(200)
+                self.send_header('Content-type', 'video/mp4')
+                self.end_headers()
+                f = open(fname)
+                for line in f:
+                    self.wfile.write(line.encode())
+                f.close()
+                return True
+            return False
+        def _stream_fmp4(self):
             self.send_response(200)
             self.send_header('Content-type', 'video/mp4')
             self.end_headers()
@@ -43,7 +55,7 @@ def MakeHandler(params):
                     time.sleep(writer.chunk_duration)
                 except:
                      break
-        def _stream_playlist(self):
+        def _stream_media_playlist(self):
             self.send_response(200)
             self.send_header('Content-type', 'application/vnd.apple.mpegurl')
             self.end_headers()
@@ -51,7 +63,7 @@ def MakeHandler(params):
             if segmenter == None:
                 segmenter=Segmenter(self._filename, self.path, self.server.server_address, self._segment_floor, self._cache, self._verbal)
                 self.segmenters[self.path] = segmenter
-            self.wfile.write(segmenter.playlist().encode())
+            self.wfile.write(segmenter.media_playlist().encode())
         def _stream_segment(self):
             idx=self.path.rfind('_')
             if idx < 0:
@@ -81,18 +93,22 @@ def MakeHandler(params):
                 self._replyerror(501)
             elif self.path == '/':
                 self._stream_filelist()
-            elif self.path.endswith('.m4s') or self.path.endswith('.mp4'):
+            elif self.path.endswith(('.m4s','.mp4')):
                 self._stream_segment()
+            elif self.path.endswith(('.vtt')):
+                self._stream_file(os.path.join(self._root, self.path[1:]))
             else:
                 hls=False
                 if self.path.endswith(('.m3u','.m3u8')):
+                    if self._stream_file(os.path.join(self._root, self.path[1:])) == True:
+                        return
                     hls=True
                     self.path = self.path[:-4]
                     if self.path[-1] =='.':
                         self.path=self.path[:-1]
-                self._filename = os.path.join(self._root, self.path[1:] + '.mp4')
+                self._filename = os.path.join(self._root, self.path[1:]+'.mp4')
                 if os.path.isfile(self._filename):
-                    self._stream_playlist() if hls==True else self._stream_file()
+                    self._stream_media_playlist() if hls==True else self._stream_fmp4()
                 else:
                     self._replyerror(404)
 
