@@ -26,15 +26,43 @@ if __name__ == "__main__":
 
 **installation**
 
-`pip install fragmented-mp4stream-pkg==0.0.2`
+`pip install fragmented-mp4stream-pkg==0.0.3`
+
+**subtitles**
+
+* Innner subtitles: track handler=``text``, type=``tx3g``. Verified with ``MPlayer``.
+* Outer subtitles: 
+  * master playlist: m3u8-file - ex.
+  ```m3u
+  #EXTM3U
+  #EXT-X-MEDIA:TYPE=SUBTITLES,GROUP-ID="subs",NAME="English",DEFAULT=NO,FORCED=NO,URI="http://mkh-Aspire-A315-54K:4555/toystory20sub.m3u8"
+  #EXT-X-STREAM-INF:PROGRAM-ID=1,SUBTITLES="subs"
+  http://mkh-Aspire-A315-54K:4555/toystory20.m3u8
+  ```
+  * subtitles playlist: m3u8-file - ex. ``toystory20sub.m3u8``
+  ```m3u
+    #EXTM3U
+    #EXT-X-PLAYLIST-TYPE:VOD
+    #EXT-X-MEDIA-SEQUENCE:0
+    #EXT-X-TARGETDURATION:8
+    #EXTINF:4.0107,
+    http://mkh-Aspire-A315-54K:4555/toystory20.vtt
+    ```
+  * ``webVTT`` subtitles: vtt-files - ex. ``toystory20.vtt``
+    ```vtt
+    WEBVTT
+
+    00:00:02.829 --> 00:00:4.829 line:74% align:left
+    <i>1866.</i>
+    ```
 
 **streams**
 * json list of available files
   >`http://ip:port/`
-* naked fragmented mp4
+* fragmented mp4
   >`http://ip:port/filename_without_extension`
 * hls container with fragmented mp4
-  >`http://ip:port/file_with_m3u_extension`
+  >`http://ip:port/filename_with_m3u_extension`
 
 **example1**
 
@@ -49,7 +77,8 @@ if __name__ == "__main__":
       "Wingsuit.mp4",
       "toystory.mp4",
       "nuts720p_4Mb.mp4"
-    ]```
+    ]
+    ```
 
 **example2**
 
