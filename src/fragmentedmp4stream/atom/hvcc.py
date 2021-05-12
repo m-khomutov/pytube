@@ -105,9 +105,7 @@ class Box(atom.Box):
                " bitDepthChroma:" + str((self.bit_depth_chroma & 7)+8 ) + \
                " framerate:" + str(self.framerate) + "\n"
         for cset in self.configSets:
-            for i in range(self._depth * 2):
-                ret += " "
-            ret += str(cset)
+            ret += " " * (self._depth * 2) + str(cset)
         return ret
     def _readfile(self, f):
         self._readsome(f, 1)

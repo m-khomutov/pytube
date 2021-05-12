@@ -53,7 +53,7 @@ if __name__ == "__main__":
     WEBVTT
 
     00:00:02.829 --> 00:00:4.829 line:74% align:left
-    <i>1866.</i>
+    <i>subtitles example.</i>
     ```
 
 **streams**

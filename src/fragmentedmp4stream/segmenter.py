@@ -33,10 +33,10 @@ class Segmenter:
         if index >= len(self.media_segments):
             raise ValueError
         ret=bytes()
-        for i in range(len(self.media_segments[index].moof)):
-            ret += self.media_segments[index].moof[i].encode()
+        for m in self.media_segments[index].moof:
+            ret += m.encode()
             mdat_box = mdat.Box(type='mdat')
-            trun=self.media_segments[index].moof[i].find('trun')
+            trun=m.find('trun')
             for tr in trun:
                 for sample in tr.samples:
                     mdat_box.append(self.reader.sample(sample.initial_offset, sample.size))
@@ -74,8 +74,8 @@ class Segmenter:
         with open(self._filename+'.cache', 'wb') as f:
             f.write(self.writer.init())
             for segment in self.media_segments:
-                for i in range(len(segment.moof)):
-                    f.write(segment.moof[i].encode())
+                for m in segment.moof:
+                    f.write(m.encode())
             f.close()
     def _readcache(self):
         r=Reader(self._filename+'.cache')

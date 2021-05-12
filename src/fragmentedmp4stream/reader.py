@@ -9,9 +9,9 @@ class SamplesStscInfo:
     def __init__(self, entries):
         self.entries = []
         self.index = [0, 0]
-        for i in range(len(entries)):
+        for i, entry in enumerate(entries):
             if i > 0:
-                runsize = entries[i].first_chunk - entries[i-1].first_chunk
+                runsize = entry.first_chunk - entries[i-1].first_chunk
                 for chunk in range(runsize):
                     self.entries.append(entries[i-1].samples_per_chunk)
     def iterate_offset(self):
@@ -135,7 +135,8 @@ class Reader:
         for box in self.boxes:
             rc = box.find(type)
             if len(rc) > 0:
-                for i in range(len(rc)): ret.append(rc[i])
+                for b in rc:
+                    ret.append(b)
         return ret
     def nextSample(self, trakid ):
         sample = self.samples_info[trakid].sample()
