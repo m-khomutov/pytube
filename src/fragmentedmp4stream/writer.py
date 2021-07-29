@@ -1,7 +1,7 @@
-import sys
 from .atom.atom import Box, FullBox
 from .atom import trex, stco, stsc, mfhd, stts, stsd, mdat, trun, tfhd, stsz, hvcc
 from .reader import FragmentationFinished
+
 
 class Writer:
     def __init__(self, reader):
@@ -10,10 +10,12 @@ class Writer:
         self.reader = reader
         self._set_ftyp()
         self._set_moov()
+
     def init(self):
         return self.ftyp.encode() + self.moov.encode()
+
     def fragment(self):
-        if self.last_chunk == True:
+        if self.last_chunk:
             raise FragmentationFinished("done")
         self._set_moof()
         self.moof.find('mfhd')[0].sequence_number = self._sequence_number
@@ -30,7 +32,7 @@ class Writer:
     def _set_ftyp(self):
         ftyp = self.reader.find('ftyp')
         if len(ftyp) != 1:
-            raise InvalidFormat( "ftyp is not found" )
+            raise SyntaxError( "ftyp is not found" )
         self.ftyp = ftyp[0]
         self.base_offset = self.ftyp.fullsize()
     def _set_moov(self):
@@ -83,16 +85,16 @@ class Writer:
             traf = Box(type='traf')
             self.moof.store(traf)
             sample_flags = trex.SampleFlags(1, True)
-            tr_flags = trun.Flags.DataOffsetPresent | trun.Flags.FirstSampleFlagsPresent | trun.Flags.SampleSizePresent
+            tr_flags = trun.Flags.DATA_OFFSET | trun.Flags.FIRST_SAMPLE_FLAGS | trun.Flags.SAMPLE_SIZE
             if self.trakmap[id] == 'vide':
                 if self.reader.hasCT(id):
-                    tr_flags |= trun.Flags.SampleCompositionTimeOffsetsPresent
+                    tr_flags |= trun.Flags.SAMPLE_COMPOSITION_TIME_OFFSETS
             elif self.trakmap[id] == 'soun':
                 sample_flags = trex.SampleFlags(2, False)
-                tr_flags = trun.Flags.DataOffsetPresent | trun.Flags.SampleDurationPresent | trun.Flags.SampleSizePresent
+                tr_flags = trun.Flags.DATA_OFFSET | trun.Flags.SAMPLE_DURATION | trun.Flags.SAMPLE_SIZE
             elif self.trakmap[id] == 'text':
                 tf_flags = tfhd.Flags.BaseDataOffsetPresent
-                tr_flags = trun.Flags.DataOffsetPresent | trun.Flags.SampleSizePresent | trun.Flags.SampleDurationPresent
+                tr_flags = trun.Flags.DATA_OFFSET | trun.Flags.SAMPLE_SIZE | trun.Flags.SAMPLE_DURATION
                 sample_flags = trex.SampleFlags(0, False)
             traf.store(tfhd.Box(flags=tf_flags,
                                 trakid=id,
@@ -100,7 +102,7 @@ class Writer:
                                 defsampleduration=self.sttsmap[id].entries[0].delta,
                                 defsampleflags=sample_flags.value()))
             first_sample_flags = trex.SampleFlags(2, False)
-            trun_boxes[id] = trun.Box(flags=tr_flags, firstsampleflags=first_sample_flags.value())
+            trun_boxes[id] = trun.Box(flags=tr_flags, first_sample_flags=first_sample_flags.value())
             traf.store(trun_boxes[id])
             if self.trakmap[id] == 'vide':
                 mdat_size[id]=self._set_video_chunk(id, trun_boxes[id])
@@ -119,9 +121,9 @@ class Writer:
         vsize = 0
         if self.first_vframe.size > 0:
             if self.first_vframe.composition_time != None:
-                trun_box.add_sample(size=self.first_vframe.size, timeoffsets=self.first_vframe.composition_time, initialoffset=self.first_vframe.offset)
+                trun_box.add_sample(size=self.first_vframe.size, time_offsets=self.first_vframe.composition_time, initial_offset=self.first_vframe.offset)
             else:
-                trun_box.add_sample(size=self.first_vframe.size, initialoffset=self.first_vframe.offset)
+                trun_box.add_sample(size=self.first_vframe.size, initial_offset=self.first_vframe.offset)
             self.mdat.append(self.first_vframe.data)
             vsize += self.first_vframe.size
         while True:
@@ -133,9 +135,9 @@ class Writer:
                         self.chunk_duration /= self.reader.timescale[trakid]
                         break
                     if vframe.composition_time != None:
-                        trun_box.add_sample(size=vframe.size, timeoffsets=vframe.composition_time, initialoffset=vframe.offset)
+                        trun_box.add_sample(size=vframe.size, time_offsets=vframe.composition_time, initial_offset=vframe.offset)
                     else:
-                        trun_box.add_sample(size=vframe.size, initialoffset=vframe.offset)
+                        trun_box.add_sample(size=vframe.size, initial_offset=vframe.offset)
                     self.mdat.append(vframe.data)
                     self.chunk_duration += vframe.duration
                     vsize += vframe.size
@@ -152,7 +154,7 @@ class Writer:
                 sample = self.reader.nextSample(trakid)
                 if self.last_chunk == False:
                     duration += sample.duration / self.reader.timescale[trakid]
-                trun_box.add_sample(size=sample.size, duration=sample.duration, initialoffset=sample.offset)
+                trun_box.add_sample(size=sample.size, duration=sample.duration, initial_offset=sample.offset)
                 self.mdat.append(sample.data)
                 asize += sample.size
             except:
@@ -166,7 +168,7 @@ class Writer:
                 sample = self.reader.nextSample(trakid)
                 if self.last_chunk == False:
                     duration += sample.duration / self.reader.timescale[trakid]
-                trun_box.add_sample(size=sample.size, duration=sample.duration, initialoffset=sample.offset)
+                trun_box.add_sample(size=sample.size, duration=sample.duration, initial_offset=sample.offset)
                 self.mdat.append(sample.data)
                 size += sample.size
             except:
@@ -181,4 +183,4 @@ class Writer:
             return frame[4] & 0x1f != 1
         elif self.reader.vstream_type == stsd.VideoStreamType.HEVC:
             return hvcc.NaluType.keyframe(hvcc.NaluHeader(frame))
-        raise sys.TypeError
+        raise TypeError

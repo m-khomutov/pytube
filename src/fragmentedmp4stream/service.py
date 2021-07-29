@@ -24,7 +24,7 @@ def MakeHandler(params):
             self.send_response(200)
             self.send_header('Content-type', 'application/json')
             self.end_headers()
-            lst=json.dumps([f for f in os.listdir(self._root) if f.endswith('.mp4')])
+            lst=json.dumps([f[:-4] for f in os.listdir(self._root) if f.endswith('.mp4')])
             self.wfile.write(str.encode(lst))
         def _stream_file(self, fname):
             if os.path.isfile(fname):

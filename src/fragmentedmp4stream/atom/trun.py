@@ -1,122 +1,143 @@
-from .atom import FullBox
+"""Track fragment run"""
+from functools import reduce
 from enum import IntFlag
+from .atom import FullBox
+
 
 class Frame:
-    def __init__(self):
-        self.duration = 0
-        self.offset = 0
-        self.size = 0
-        self.composition_time = None
-        self.data = []
+    """Data frame to store in the run box"""
+    duration, offset, size = 0, 0, 0
+    composition_time = None
+    _data = b''
+
+    def __repr__(self):
+        return 'duration:{} offset:{} size:{} composition_time:{}'.format(self.duration,
+                                                                          self.offset,
+                                                                          self.size,
+                                                                          self.composition_time)
+
+    @property
+    def data(self):
+        """data getter"""
+        return self._data
+
+    @data.setter
+    def data(self, value):
+        """data setter"""
+        self._data = value
+
 
 class Flags(IntFlag):
-    DataOffsetPresent = 0x000001
-    FirstSampleFlagsPresent = 0x000004
-    SampleDurationPresent = 0x000100
-    SampleSizePresent = 0x000200
-    SampleFlagsPresent = 0x000400
-    SampleCompositionTimeOffsetsPresent = 0x000800
+    """Define number of optional fields"""
+    DATA_OFFSET = 0x000001
+    FIRST_SAMPLE_FLAGS = 0x000004
+    SAMPLE_DURATION = 0x000100
+    SAMPLE_SIZE = 0x000200
+    SAMPLE_FLAGS = 0x000400
+    SAMPLE_COMPOSITION_TIME_OFFSETS = 0x000800
 
-class Sample:
-    def __init__(self, duration, size, flags, composition_time_offset, initial_offset=0):
-        self.duration = duration
-        self.size = size
-        self.flags = flags
-        self.composition_time_offset = composition_time_offset
-        self.initial_offset = initial_offset
-    def encode(self):
-        ret = b''
-        if self.duration != None:
-            ret += self.duration.to_bytes(4, byteorder='big')
-        if self.size != None:
-            ret += self.size.to_bytes(4, byteorder='big')
-        if self.flags != None:
-            ret += self.flags.to_bytes(4, byteorder='big')
-        if self.composition_time_offset != None:
-            ret += self.composition_time_offset.to_bytes(4, byteorder='big')
-        return ret
+
+class OptionalFields:
+    """Sample optional fields"""
+    def __init__(self, **kwargs):
+        self._fields = (kwargs.get('duration', None),
+                        kwargs.get('size', None),
+                        kwargs.get('flags', None),
+                        kwargs.get('composition_time_offset', None))
+        self._initial_offset = kwargs.get('initial_offset', 0)
+
     def __repr__(self):
-        ret = '{'
-        if self.duration != None:
-            ret += str(self.duration)
-        ret += ','
-        if self.size != None:
-            ret += str(self.size)
-        ret += ','
-        if self.flags != None:
-            ret += hex(self.flags)
-        ret += ','
-        if self.composition_time_offset != None:
-            ret += str(self.composition_time_offset)
-        ret +='}'
-        return ret
+        return '{' + ','.join(map(lambda x: '' if x is None else str(x), self._fields)) + '}'
+
+    @property
+    def initial_offset(self):
+        """returns box initial offset"""
+        return self._initial_offset
+
+    def to_bytes(self):
+        """Returns sample optional fields as bytestream, ready to be sent to socket"""
+        none_filter = filter(lambda x: x is not None, self._fields)
+        return reduce(lambda a, b: a + b, [k.to_bytes(4, byteorder='big') for k in none_filter])
+
 
 class Box(FullBox):
+    """Track fragment run box"""
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        f = kwargs.get("file", None)
+        file = kwargs.get("file", None)
         self.tr_flags = Flags(self.flags)
-        self.samples=[]
-        if f != None:
-            self._readfile(f)
+        self._samples = []
+        if file is not None:
+            self._readfile(file)
         else:
             self.size = 16
             self.type = 'trun'
             self.tr_flags = Flags(kwargs.get("flags", 0))
-            self.first_sample_flags = kwargs.get("firstsampleflags", 0)
+            self.first_sample_flags = kwargs.get("first_sample_flags", 0)
             self.data_offset = 0
-            if Flags.DataOffsetPresent in self.tr_flags:
+            if Flags.DATA_OFFSET in self.tr_flags:
                 self.size += 4
-            if Flags.FirstSampleFlagsPresent in self.tr_flags:
+            if Flags.FIRST_SAMPLE_FLAGS in self.tr_flags:
                 self.size += 4
-    def add_sample(self, *args, **kwargs):
+
+    def add_sample(self, **kwargs):
+        """add optional fields to run box in accordance with flags"""
         sample_duration = sample_size = sample_flags = sample_time_offsets = None
-        if Flags.SampleDurationPresent in self.tr_flags:
+        if Flags.SAMPLE_DURATION in self.tr_flags:
             sample_duration = kwargs.get('duration', 0)
             self.size += 4
-        if Flags.SampleSizePresent in self.tr_flags:
+        if Flags.SAMPLE_SIZE in self.tr_flags:
             sample_size = kwargs.get('size', 0)
             self.size += 4
-        if Flags.SampleFlagsPresent in self.tr_flags:
+        if Flags.SAMPLE_FLAGS in self.tr_flags:
             sample_flags = kwargs.get('flags', 0)
             self.size += 4
-        if Flags.SampleCompositionTimeOffsetsPresent in self.tr_flags:
-            sample_time_offsets = kwargs.get('timeoffsets', 0)
+        if Flags.SAMPLE_COMPOSITION_TIME_OFFSETS in self.tr_flags:
+            sample_time_offsets = kwargs.get('time_offsets', 0)
             self.size += 4
-        self.samples.append(Sample(sample_duration, sample_size, sample_flags, sample_time_offsets, kwargs.get('initialoffset', 0)))
+        self._samples.append(OptionalFields(duration=sample_duration,
+                                            size=sample_size,
+                                            flags=sample_flags,
+                                            composition_time_offset=sample_time_offsets,
+                                            initial_offset=kwargs.get('initial_offset', 0)))
+
     def __repr__(self):
-        ret=super().__repr__()
-        if Flags.DataOffsetPresent in self.tr_flags:
-            ret += ' data_offset:' + str(self.data_offset)
-        if Flags.FirstSampleFlagsPresent in self.tr_flags:
-            ret += ' first_sample_flags:' + hex(self.first_sample_flags)
-        ret += ' samples{duration,size,flags,ctime offset}:'
-        for s in self.samples:
-            ret += str(s)
-        return ret
-    def encode(self):
-        ret = super().encode() + len(self.samples).to_bytes(4, byteorder='big')
-        if Flags.DataOffsetPresent in self.tr_flags:
+        result = super().__repr__()
+        if Flags.DATA_OFFSET in self.tr_flags:
+            result += ' data_offset:{}'.format(self.data_offset)
+        if Flags.FIRST_SAMPLE_FLAGS in self.tr_flags:
+            result += ' first_sample_flags:{:x}'.format(self.first_sample_flags)
+        return result + ' samples{duration,size,flags,comp_time offset}:' + \
+                        ''.join([str(k) for k in self._samples])
+
+    def to_bytes(self):
+        ret = super().to_bytes() + len(self._samples).to_bytes(4, byteorder='big')
+        if Flags.DATA_OFFSET in self.tr_flags:
             ret += self.data_offset.to_bytes(4, byteorder='big')
-        if Flags.FirstSampleFlagsPresent in self.tr_flags:
+        if Flags.FIRST_SAMPLE_FLAGS in self.tr_flags:
             ret += self.first_sample_flags.to_bytes(4, byteorder='big')
-        for s in self.samples:
-            ret += s.encode()
-        return ret
-    def _readfile(self, f):
-        count = int.from_bytes(self._readsome(f, 4), "big")
-        if Flags.DataOffsetPresent in self.tr_flags:
-            self.data_offset = int.from_bytes(self._readsome(f, 4), "big")
-        if Flags.FirstSampleFlagsPresent in self.tr_flags:
-            self.first_sample_flags = int.from_bytes(self._readsome(f, 4), "big")
-        for i in range(count):
-            duration=size=flags=time_offsets=None
-            if Flags.SampleDurationPresent in self.tr_flags:
-                duration = int.from_bytes(self._readsome(f, 4), "big")
-            if Flags.SampleSizePresent in self.tr_flags:
-                size = int.from_bytes(self._readsome(f, 4), "big")
-            if Flags.SampleFlagsPresent in self.tr_flags:
-                flags = int.from_bytes(self._readsome(f, 4), "big")
-            if Flags.SampleCompositionTimeOffsetsPresent in self.tr_flags:
-                time_offsets = int.from_bytes(self._readsome(f, 4), "big")
-            self.samples.append(Sample(duration, size, flags, time_offsets))
+        return ret + reduce(lambda a, b: a + b, map(lambda x: x.to_bytes(), self._samples))
+
+    def _readfile(self, file):
+        count = int.from_bytes(self._readsome(file, 4), "big")
+        if Flags.DATA_OFFSET in self.tr_flags:
+            self.data_offset = int.from_bytes(self._readsome(file, 4), "big")
+        if Flags.FIRST_SAMPLE_FLAGS in self.tr_flags:
+            self.first_sample_flags = int.from_bytes(self._readsome(file, 4), "big")
+        self._samples = [map(lambda: self._read_samples(file), range(count))]
+
+    def _read_samples(self, file):
+        """read sample fields in accordance with option flags"""
+        duration = size = flags = time_offsets = None
+        if Flags.SAMPLE_DURATION in self.tr_flags:
+            duration = int.from_bytes(self._readsome(file, 4), "big")
+        if Flags.SAMPLE_SIZE in self.tr_flags:
+            size = int.from_bytes(self._readsome(file, 4), "big")
+        if Flags.SAMPLE_FLAGS in self.tr_flags:
+            flags = int.from_bytes(self._readsome(file, 4), "big")
+        if Flags.SAMPLE_COMPOSITION_TIME_OFFSETS in self.tr_flags:
+            time_offsets = int.from_bytes(self._readsome(file, 4), "big")
+        return OptionalFields(duration=duration,
+                              size=size,
+                              flags=flags,
+                              composition_time_offset=time_offsets)

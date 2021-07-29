@@ -68,6 +68,8 @@ class Box():
     def depth(self):
         return self._depth
     def encode(self):
+        return self.to_bytes()
+    def to_bytes(self):
         sz = self.fullsize()
         if sz >= 0xffffffff:
             ret = (1).to_bytes(4, byteorder='big')
@@ -114,8 +116,10 @@ class FullBox(Box):
         for s in self._storage:
             ret += "\n" + s.__repr__()
         return ret
-    def encode(self):
-        ret  = super().encode()
+    def to_bytes(self):
+        ret  = super().to_bytes()
         ret += self.version.to_bytes(1, byteorder='big')
         ret += self.flags.to_bytes(3, byteorder='big')
         return ret
+    def encode(self):
+        return self.to_bytes()

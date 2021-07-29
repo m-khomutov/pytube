@@ -1,27 +1,31 @@
+"""Video media header, overall information"""
+from functools import reduce
 from .atom import FullBox
 
 
 class Box(FullBox):
+    """Video media header box"""
+    _graphics_mode = 0
+    _color_channels = []
+
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        f = kwargs.get("file", None)
-        if f != None:
-            self._readfile(f)
+        file = kwargs.get("file", None)
+        if file:
+            self._readfile(file)
 
     def __repr__(self):
-        ret = super().__repr__() + " graphicsmode:" + str(self.graphicsmode) + \
-              " opcolor:" + str(self.opcolor)
-        return ret
+        return super().__repr__() + " graphics mode:" + str(self._graphics_mode) + \
+               " color:" + str(self._color_channels)
 
-    def _readfile(self, f):
-        self.graphicsmode = int.from_bytes(self._readsome(f, 2), "big")
-        self.opcolor=[]
-        for i in range(3):
-            self.opcolor.append(int.from_bytes(self._readsome(f, 2), "big"))
+    def _readfile(self, file):
+        """Reads Box from file"""
+        self._graphics_mode = int.from_bytes(self._readsome(file, 2), "big")
+        self._color_channels = list(map(lambda x: int.from_bytes(self._readsome(file, 2), "big"),
+                                        range(3)))
 
-    def encode(self):
-        ret = super().encode()
-        ret += self.graphicsmode.to_bytes(2, byteorder='big')
-        for cl in self.opcolor:
-            ret += cl.to_bytes(2, byteorder='big')
-        return ret
+    def to_bytes(self):
+        """Returns box as bytestream, ready to be sent to socket"""
+        res = super().to_bytes() + self._graphics_mode.to_bytes(2, byteorder='big')
+        return res + reduce(lambda a, b: a + b,
+                            map(lambda cl: cl.to_bytes(2, byteorder='big'), self._color_channels))
