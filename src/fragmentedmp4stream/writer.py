@@ -78,7 +78,9 @@ class Writer:
     def _set_moof(self):
         self.moof=Box(type='moof')
         self.moof.store(mfhd.Box())
-        tf_flags = tfhd.Flags.BaseDataOffsetPresent | tfhd.Flags.DefaultSampleDurationPresent | tfhd.Flags.DefaultSampleFlagsPresent
+        tf_flags = tfhd.Flags.BASE_DATA_OFFSET_PRESENT |\
+                   tfhd.Flags.DEFAULT_SAMPLE_DURATION_PRESENT |\
+                   tfhd.Flags.DEFAULT_SAMPLE_FLAGS_PRESENT
         trun_boxes = {}
         mdat_size = {}
         for id in self.trakmap.keys():
@@ -93,14 +95,14 @@ class Writer:
                 sample_flags = trex.SampleFlags(2, False)
                 tr_flags = trun.Flags.DATA_OFFSET | trun.Flags.SAMPLE_DURATION | trun.Flags.SAMPLE_SIZE
             elif self.trakmap[id] == 'text':
-                tf_flags = tfhd.Flags.BaseDataOffsetPresent
+                tf_flags = tfhd.Flags.BASE_DATA_OFFSET_PRESENT
                 tr_flags = trun.Flags.DATA_OFFSET | trun.Flags.SAMPLE_SIZE | trun.Flags.SAMPLE_DURATION
                 sample_flags = trex.SampleFlags(0, False)
             traf.store(tfhd.Box(flags=tf_flags,
-                                trakid=id,
-                                dataoffset=self.base_offset,
-                                defsampleduration=self.sttsmap[id].entries[0].delta,
-                                defsampleflags=int(sample_flags)))
+                                track_id=id,
+                                data_offset=self.base_offset,
+                                default_sample_duration=self.sttsmap[id].entries[0].delta,
+                                default_sample_flags=int(sample_flags)))
             first_sample_flags = trex.SampleFlags(2, False)
             trun_boxes[id] = trun.Box(flags=tr_flags, first_sample_flags=int(first_sample_flags))
             traf.store(trun_boxes[id])
