@@ -49,8 +49,8 @@ class Writer:
             otrak.store(Box(type='mdia'))
             otrak.store(tr.find('mdhd')[0],'mdia')
             hdlr = tr.find('hdlr')[0]
-            self.trakmap[tkhd.trackID] = hdlr.handler_type
-            self.sttsmap[tkhd.trackID] = tr.find('stts')[0]
+            self.trakmap[tkhd.track_id] = hdlr.handler_type
+            self.sttsmap[tkhd.track_id] = tr.find('stts')[0]
             otrak.store(hdlr,'mdia')
             otrak.store(Box(type='minf'), 'mdia')
             if hdlr.handler_type == 'vide':

@@ -1,75 +1,80 @@
+"""Track header, overall information about the track"""
+from functools import reduce
 from .atom import FullBox
 
 
 class Box(FullBox):
+    """Track header box"""
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        f = kwargs.get("file", None)
-        if f != None:
-            self._readfile(f)
+        file = kwargs.get("file", None)
+        if file is not None:
+            self._readfile(file)
 
     def __repr__(self):
-        ret = super().__repr__() + " ctime:" + str(self.creationTime) + \
-              " mtime:" + str(self.modificationTime) + \
-              " trackID:" + str(self.trackID) + \
-              " duration:" + str(self.duration) + \
-              " layer:" + str(self.layer) + \
-              " alternateGroup:" + str(self.alternateGroup) + \
-              " volume:" + hex(self.volume) + \
-              " matrix:[ "
-        for i in self.matrix:
-            ret += hex(i) + " "
-        ret += "] width:" + str(self.width) + \
-               " height:" + str(self.height)
-        return ret
+        return super().__repr__() + \
+              ' creation time={} modification time={} track id={} duration={} layer={}' \
+              ' alternative group={} volume={:04x} matrix=[{}]' \
+              ' width={} height={}'.format(self.timing[0],
+                                           self.timing[1],
+                                           self.track_id,
+                                           self.duration,
+                                           self.track_info[0],
+                                           self.track_info[1],
+                                           self.track_info[2],
+                                           ' '.join([hex(k) for k in self.matrix]),
+                                           self.width,
+                                           self.height)
 
-    def _readfile(self, f):
+    def _readfile(self, file):
         if self.version == 1:
-            self.creationTime = int.from_bytes(self._readsome(f, 8), "big")
-            self.modificationTime = int.from_bytes(self._readsome(f, 8), "big")
-            self.trackID = int.from_bytes(self._readsome(f, 4), "big")
-            self._readsome(f,4)
-            self.duration = int.from_bytes(self._readsome(f, 8), "big")
+            self.timing = (
+                int.from_bytes(self._readsome(file, 8), "big"),  # creation
+                int.from_bytes(self._readsome(file, 8), "big")   # modification
+            )
+            self.track_id = int.from_bytes(self._readsome(file, 4), "big")
+            self._readsome(file, 4)
+            self.duration = int.from_bytes(self._readsome(file, 8), "big")
         else:
-            self.creationTime = int.from_bytes(self._readsome(f, 4), "big")
-            self.modificationTime = int.from_bytes(self._readsome(f, 4), "big")
-            self.trackID = int.from_bytes(self._readsome(f, 4), "big")
-            self._readsome(f,4)
-            self.duration = int.from_bytes(self._readsome(f, 4), "big")
+            self.timing = (
+                int.from_bytes(self._readsome(file, 4), "big"),  # creation
+                int.from_bytes(self._readsome(file, 4), "big")   # modification
+            )
+            self.track_id = int.from_bytes(self._readsome(file, 4), "big")
+            self._readsome(file, 4)
+            self.duration = int.from_bytes(self._readsome(file, 4), "big")
+        self._readsome(file, 8)
+        self.track_info = (
+            int.from_bytes(self._readsome(file, 2), "big"),  # layer
+            int.from_bytes(self._readsome(file, 2), "big"),  # alternate_group
+            int.from_bytes(self._readsome(file, 2), "big")   # volume
+        )
+        self._readsome(file, 2)
+        self.matrix = [int.from_bytes(k, 'big')
+                       for k in map(lambda x: self._readsome(file, 4), range(9))]
+        self.width = int.from_bytes(self._readsome(file, 4), "big")
+        self.height = int.from_bytes(self._readsome(file, 4), "big")
 
-        self._readsome(f,8)
-        self.layer = int.from_bytes(self._readsome(f, 2), "big")
-        self.alternateGroup = int.from_bytes(self._readsome(f, 2), "big")
-        self.volume = int.from_bytes(self._readsome(f, 2), "big")
-        self._readsome(f, 2)
-        self.matrix = []
-        for i in range(9):
-            self.matrix.append(int.from_bytes(self._readsome(f, 4), "big"))
-        self.width = int.from_bytes(self._readsome(f, 4), "big")
-        self.height = int.from_bytes(self._readsome(f, 4), "big")
-
-    def encode(self):
-        ret = super().encode()
+    def to_bytes(self):
+        result = super().to_bytes()
         if self.version == 1:
-            ret += self.creationTime.to_bytes(8, byteorder='big')
-            ret += self.modificationTime.to_bytes(8, byteorder='big')
-            ret += self.trackID.to_bytes(4, byteorder='big')
-            ret += (0).to_bytes(4, byteorder='big')
-            ret += self.duration.to_bytes(8, byteorder='big')
+            for time in self.timing:
+                result += time.to_bytes(8, byteorder='big')
+            result += self.track_id.to_bytes(4, byteorder='big')
+            result += (0).to_bytes(4, byteorder='big')
+            result += self.duration.to_bytes(8, byteorder='big')
         else:
-            ret += self.creationTime.to_bytes(4, byteorder='big')
-            ret += self.modificationTime.to_bytes(4, byteorder='big')
-            ret += self.trackID.to_bytes(4, byteorder='big')
-            ret += (0).to_bytes(4, byteorder='big')
-            ret += self.duration.to_bytes(4, byteorder='big')
-
-        ret += (0).to_bytes(8, byteorder='big')
-        ret += self.layer.to_bytes(2, byteorder='big')
-        ret += self.alternateGroup.to_bytes(2, byteorder='big')
-        ret += self.volume.to_bytes(2, byteorder='big')
-        ret += (0).to_bytes(2, byteorder='big')
-        for i in self.matrix:
-            ret += i.to_bytes(4, byteorder='big')
-        ret += self.width.to_bytes(4, byteorder='big')
-        ret += self.height.to_bytes(4, byteorder='big')
-        return ret
+            for time in self.timing:
+                result += time.to_bytes(4, byteorder='big')
+            result += self.track_id.to_bytes(4, byteorder='big')
+            result += (0).to_bytes(4, byteorder='big')
+            result += self.duration.to_bytes(4, byteorder='big')
+        result += (0).to_bytes(8, byteorder='big')
+        for info in self.track_info:
+            result += info.to_bytes(2, byteorder='big')
+        result += (0).to_bytes(2, byteorder='big')
+        result += reduce(lambda a, b: a + b,
+                         map(lambda x: x.to_bytes(4, byteorder='big'), self.matrix))
+        result += self.width.to_bytes(4, byteorder='big')
+        result += self.height.to_bytes(4, byteorder='big')
+        return result

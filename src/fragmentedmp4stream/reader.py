@@ -161,7 +161,7 @@ class Reader:
             elif box.type == 'tkhd':
                 self.file.seek(box.position)
                 box = tkhd.Box(file=self.file, depth=depth)
-                self.trakID = box.trackID
+                self.trakID = box.track_id
                 self.samples_info[self.trakID] = SamplesInfo()
             elif box.type == 'mdhd':
                 self.file.seek(box.position)
