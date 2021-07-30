@@ -1,39 +1,54 @@
+"""Track extends box sets up default values used by the movie fragments"""
 from .atom import FullBox
 
 
 class SampleFlags:
-    def __init__(self, depends_on, is_difference):
-        self.sample_depends_on = depends_on
-        self.sample_is_depended_on = 0
-        self.sample_has_redundancy = 0
-        self.sample_padding_value = 0
-        self.sample_is_difference_sample = is_difference
-        self.sample_degradation_priority = 0
+    """Sample flags field in sample fragments"""
+    _is_depended_on, _has_redundancy, _padding_value, _degradation_priority = 0, 0, 0, 0
 
-    def value(self):
-        return (self.sample_depends_on & 3) << 24 |\
-               (self.sample_is_depended_on & 3) << 22 | \
-               (self.sample_has_redundancy & 3) << 20 | \
-               (self.sample_padding_value & 7) << 17 | \
-               (self.sample_is_difference_sample & 1) << 16 | \
-               (self.sample_degradation_priority & 0xffff)
+    def __init__(self, depends_on, is_difference):
+        self._depends_on, self._is_difference_sample = depends_on, is_difference
+
+    def __repr__(self):
+        return 'depends on={} is depended on={} has redundancy={} padding value={}' \
+               ' degradation priority={}'.format(self._depends_on, self._is_depended_on,
+                                                 self._has_redundancy, self._padding_value,
+                                                 self._degradation_priority)
+
+    def __int__(self):
+        return (self._depends_on & 3) << 24 | \
+               (self._is_depended_on & 3) << 22 | \
+               (self._has_redundancy & 3) << 20 | \
+               (self._padding_value & 7) << 17 | \
+               (self._is_difference_sample & 1) << 16 | \
+               (self._degradation_priority & 0xffff)
+
 
 class Box(FullBox):
+    """Track extends box"""
+
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.size = 32
         self.type = 'trex'
-        self.trackID = kwargs.get("trakid", 0)
-        self.default_sample_description_index = kwargs.get("defindex", 1)
-        self.default_sample_duration = kwargs.get("defduration", 0)
-        self.default_sample_size = kwargs.get("defsize", 0)
-        self.default_sample_flags = kwargs.get("defflags", 0)
-        pass
+        self.track_id = kwargs.get("track_id", 0)
+        self.default_sample_description_index = kwargs.get("default_index", 1)
+        self.default_sample_duration = kwargs.get("default_duration", 0)
+        self.default_sample_size = kwargs.get("default_size", 0)
+        self.default_sample_flags = kwargs.get("default_flags", 0)
+
     def __repr__(self):
-        return super().__repr__()
-    def encode(self):
-        return super().encode() + self.trackID.to_bytes(4, byteorder='big') + \
-                                  self.default_sample_description_index.to_bytes(4, byteorder='big') + \
-                                  self.default_sample_duration.to_bytes(4, byteorder='big') + \
-                                  self.default_sample_size.to_bytes(4, byteorder='big') + \
-                                  self.default_sample_flags.to_bytes(4, byteorder='big')
+        return super().__repr__() + \
+               ' track:{} defaults: (description index={} duration={} size={} flags={:04x}'.format(
+                   self.track_id, self.default_sample_description_index,
+                   self.default_sample_duration, self.default_sample_size,
+                   self.default_sample_flags
+               )
+
+    def to_bytes(self):
+        """Returns the box as bytestream, ready to be sent to socket"""
+        result = super().to_bytes() + self.track_id.to_bytes(4, byteorder='big')
+        result += self.default_sample_description_index.to_bytes(4, byteorder='big')
+        result += self.default_sample_duration.to_bytes(4, byteorder='big')
+        result += self.default_sample_size.to_bytes(4, byteorder='big')
+        return result + self.default_sample_flags.to_bytes(4, byteorder='big')

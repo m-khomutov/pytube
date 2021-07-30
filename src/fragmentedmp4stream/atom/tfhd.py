@@ -30,6 +30,7 @@ class Box(FullBox):
             self.default_sample_duration = kwargs.get("defsampleduration", 0)
             self.default_sample_size = kwargs.get("defsamplesize", 0)
             self.default_sample_flags = kwargs.get("defsampleflags", 0)
+
     def __repr__(self):
         ret = super().__repr__() + " trackId:" + str(self.trackID)
         if Flags.BaseDataOffsetPresent in self.tf_flags:

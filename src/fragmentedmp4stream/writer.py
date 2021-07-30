@@ -73,7 +73,7 @@ class Writer:
             self.moov.store(otrak)
         self.moov.store(Box(type='mvex'))
         for id in self.trakmap.keys():
-            self.moov.store(trex.Box(trakid=id), 'mvex')
+            self.moov.store(trex.Box(track_id=id), 'mvex')
         self.base_offset += self.moov.fullsize()
     def _set_moof(self):
         self.moof=Box(type='moof')
@@ -100,9 +100,9 @@ class Writer:
                                 trakid=id,
                                 dataoffset=self.base_offset,
                                 defsampleduration=self.sttsmap[id].entries[0].delta,
-                                defsampleflags=sample_flags.value()))
+                                defsampleflags=int(sample_flags)))
             first_sample_flags = trex.SampleFlags(2, False)
-            trun_boxes[id] = trun.Box(flags=tr_flags, first_sample_flags=first_sample_flags.value())
+            trun_boxes[id] = trun.Box(flags=tr_flags, first_sample_flags=int(first_sample_flags))
             traf.store(trun_boxes[id])
             if self.trakmap[id] == 'vide':
                 mdat_size[id]=self._set_video_chunk(id, trun_boxes[id])

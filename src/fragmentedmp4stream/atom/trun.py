@@ -124,9 +124,9 @@ class Box(FullBox):
             self.data_offset = int.from_bytes(self._readsome(file, 4), "big")
         if Flags.FIRST_SAMPLE_FLAGS in self.tr_flags:
             self.first_sample_flags = int.from_bytes(self._readsome(file, 4), "big")
-        self._samples = [map(lambda: self._read_samples(file), range(count))]
+        self._samples = [map(lambda: self._read_sample(file), range(count))]
 
-    def _read_samples(self, file):
+    def _read_sample(self, file):
         """read sample fields in accordance with option flags"""
         duration = size = flags = time_offsets = None
         if Flags.SAMPLE_DURATION in self.tr_flags:
