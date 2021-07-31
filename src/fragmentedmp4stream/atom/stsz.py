@@ -1,13 +1,15 @@
+"""Sample sizes (framing)"""
 from .atom import FullBox
 
 
 class Box(FullBox):
+    """Sample table box"""
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        f = kwargs.get("file", None)
+        file = kwargs.get("file", None)
         self.entries = []
-        if f != None:
-            self._readfile(f)
+        if file is not None:
+            self._readfile(file)
         else:
             self.type = 'stsz'
             self.size = 20
@@ -16,26 +18,22 @@ class Box(FullBox):
     def __repr__(self):
         ret = super().__repr__()
         if self.sample_size != 0:
-            ret += "sample size:" + str(self.sample_size)
-        else:
-            ret += " size entries:[ "
-            for sz in self.entries:
-                ret += str(sz) + ' '
-            ret += "]"
-        return ret
+            return ret + "sample size:{}".format(self.sample_size)
+        return ret + " size entries:[ " + ' '.join([str(k) for k in self.entries]) + ']'
 
-    def _readfile(self, f):
-        self.sample_size = int.from_bytes(self._readsome(f, 4), "big")
-        self.sample_count = int.from_bytes(self._readsome(f, 4), "big")
+    def _readfile(self, file):
+        self.sample_size = int.from_bytes(self._readsome(file, 4), "big")
+        self.sample_count = int.from_bytes(self._readsome(file, 4), "big")
         if self.sample_size == 0:
-            for i in range(self.sample_count):
-                self.entries.append(int.from_bytes(self._readsome(f, 4), "big"))
+            self.entries =\
+                list(map(lambda x:
+                         int.from_bytes(self._readsome(file, 4), 'big'), range(self.sample_count)))
 
-    def encode(self):
-        ret = super().encode()
+    def to_bytes(self):
+        ret = super().to_bytes()
         ret += self.sample_size.to_bytes(4, byteorder='big')
         ret += len(self.entries).to_bytes(4, byteorder='big')
         if self.sample_size == 0:
-            for sz in self.entries:
-                ret += sz.encode();
+            for entry in self.entries:
+                ret += entry.to_bytes(4, byteorder='big')
         return ret
