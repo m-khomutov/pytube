@@ -1,7 +1,6 @@
 """Track fragment header sets up information and defaults used for
 runs of samples"""
 from enum import IntFlag
-from collections import OrderedDict
 from .atom import FullBox
 
 
@@ -15,94 +14,113 @@ class Flags(IntFlag):
     DURATION_IS_EMPTY = 0x010000
 
 
+class OptionalFields:
+    """Track fragment header optional fields"""
+    _size = 0
+
+    def __init__(self, flags, *args, **kwargs):
+        len(args)
+        self._flags = flags
+        file = kwargs.get("file", None)
+        if file is not None:
+            self._read_from_file(file)
+        else:
+            if Flags.BASE_DATA_OFFSET_PRESENT in flags:
+                self._size += 8
+                self._base_offset = kwargs.get("data_offset", 0)
+            if Flags.SAMPLE_DESCRIPTION_INDEX_PRESENT in flags:
+                self._size += 4
+                self._description_index = kwargs.get("description_index", 0)
+            if Flags.DEFAULT_SAMPLE_DURATION_PRESENT in flags:
+                self._size += 4
+                self._duration = kwargs.get("default_sample_duration", 0)
+            if Flags.DEFAULT_SAMPLE_SIZE_PRESENT in flags:
+                self._size += 4
+                self._sample_size = kwargs.get("default_sample_size", 0)
+            if Flags.DEFAULT_SAMPLE_FLAGS_PRESENT in flags:
+                self._size += 4
+                self._sample_flags = kwargs.get("default_sample_flags", 0)
+
+    def __repr__(self):
+        ret = ''
+        if Flags.BASE_DATA_OFFSET_PRESENT in self._flags:
+            ret += ' base_data_offset:{}'.format(self._base_offset)
+        if Flags.SAMPLE_DESCRIPTION_INDEX_PRESENT in self._flags:
+            ret += ' index:{}'.format(self._description_index)
+        ret += ' default_sample['
+        if Flags.DEFAULT_SAMPLE_DURATION_PRESENT in self._flags:
+            ret += ' duration:{}'.format(self._duration)
+        if Flags.DEFAULT_SAMPLE_SIZE_PRESENT in self._flags:
+            ret += ' size:{}'.format(self._sample_size)
+        if Flags.DEFAULT_SAMPLE_FLAGS_PRESENT in self._flags:
+            ret += ' flags:{:x}'.format(self._sample_flags)
+        return ret
+
+    def __len__(self):
+        return self._size
+
+    def _read_from_file(self, file):
+        """Get optional field from mp4 file"""
+        if Flags.BASE_DATA_OFFSET_PRESENT in self._flags:
+            self._base_offset = int.from_bytes(file.read(8), "big")
+            self._size += 8
+        if Flags.SAMPLE_DESCRIPTION_INDEX_PRESENT in self._flags:
+            self._description_index = int.from_bytes(file.read(4), "big")
+            self._size += 4
+        if Flags.DEFAULT_SAMPLE_DURATION_PRESENT in self._flags:
+            self._duration = int.from_bytes(file.read(4), "big")
+            self._size += 4
+        if Flags.DEFAULT_SAMPLE_SIZE_PRESENT in self._flags:
+            self._sample_size = int.from_bytes(file.read(4), "big")
+            self._size += 4
+        if Flags.DEFAULT_SAMPLE_FLAGS_PRESENT in self._flags:
+            self._sample_flags = int.from_bytes(file.read(4), "big")
+            self._size += 4
+
+    def to_bytes(self):
+        """Returns optional fields as bytestream, ready to be sent to socket"""
+        ret = b''
+        if Flags.BASE_DATA_OFFSET_PRESENT in self._flags:
+            ret += self._base_offset.to_bytes(8, byteorder='big')
+        if Flags.SAMPLE_DESCRIPTION_INDEX_PRESENT in self._flags:
+            ret += self._description_index.to_bytes(4, byteorder='big')
+        if Flags.DEFAULT_SAMPLE_DURATION_PRESENT in self._flags:
+            ret += self._duration.to_bytes(4, byteorder='big')
+        if Flags.DEFAULT_SAMPLE_SIZE_PRESENT in self._flags:
+            ret += self._sample_size.to_bytes(4, byteorder='big')
+        if Flags.DEFAULT_SAMPLE_FLAGS_PRESENT in self._flags:
+            ret += self._sample_flags.to_bytes(4, byteorder='big')
+        return ret
+
+
 class Box(FullBox):
     """Track fragment header box"""
-    _optional_fields = OrderedDict()
-
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         file = kwargs.get("file", None)
-        self.tf_flags = Flags(self.flags)
         self.size = 16
         if file is not None:
             self._readfile(file)
+            self._optional_fields = OptionalFields(Flags(self.flags), file=file)
         else:
-            if Flags.BASE_DATA_OFFSET_PRESENT in self.tf_flags:
-                self.size += 8
-                self._optional_fields[Flags.BASE_DATA_OFFSET_PRESENT] =\
-                    kwargs.get("data_offset", 0)
-            if Flags.SAMPLE_DESCRIPTION_INDEX_PRESENT in self.tf_flags:
-                self.size += 4
-                self._optional_fields[Flags.SAMPLE_DESCRIPTION_INDEX_PRESENT] = \
-                    kwargs.get("description_index", 0)
-            if Flags.DEFAULT_SAMPLE_DURATION_PRESENT in self.tf_flags:
-                self.size += 4
-                self._optional_fields[Flags.DEFAULT_SAMPLE_DURATION_PRESENT] = \
-                    kwargs.get("default_sample_duration", 0)
-            if Flags.DEFAULT_SAMPLE_SIZE_PRESENT in self.tf_flags:
-                self.size += 4
-                self._optional_fields[Flags.DEFAULT_SAMPLE_SIZE_PRESENT] = \
-                    kwargs.get("default_sample_size", 0)
-            if Flags.DEFAULT_SAMPLE_FLAGS_PRESENT in self.tf_flags:
-                self.size += 4
-                self._optional_fields[Flags.DEFAULT_SAMPLE_FLAGS_PRESENT] = \
-                    kwargs.get("default_sample_flags", 0)
+            self._optional_fields =\
+                OptionalFields(Flags(self.flags),
+                               data_offset=kwargs.get('data_offset', None),
+                               description_index=kwargs.get("description_index", None),
+                               default_sample_duration=kwargs.get('default_sample_duration', None),
+                               default_sample_size=kwargs.get("default_sample_size", None),
+                               default_sample_flags=kwargs.get('default_sample_flags', None))
             self.type = 'tfhd'
             self.track_id = kwargs.get("track_id", 0)
+        self.size += len(self._optional_fields)
 
     def __repr__(self):
-        ret = super().__repr__() + " trackId:" + str(self.track_id)
-        if Flags.BASE_DATA_OFFSET_PRESENT in self.tf_flags:
-            ret += ' base_data_offset:{}'.format(
-                self._optional_fields[Flags.BASE_DATA_OFFSET_PRESENT]
-            )
-        if Flags.SAMPLE_DESCRIPTION_INDEX_PRESENT in self.tf_flags:
-            ret += ' index:{}'.format(
-                self._optional_fields[Flags.SAMPLE_DESCRIPTION_INDEX_PRESENT]
-            )
-        ret += ' default_sample['
-        if Flags.DEFAULT_SAMPLE_DURATION_PRESENT in self.tf_flags:
-            ret += ' duration:{}'.format(
-                self._optional_fields[Flags.DEFAULT_SAMPLE_DURATION_PRESENT]
-            )
-        if Flags.DEFAULT_SAMPLE_SIZE_PRESENT in self.tf_flags:
-            ret += ' size:{}'.format(
-                self._optional_fields[Flags.DEFAULT_SAMPLE_SIZE_PRESENT]
-            )
-        if Flags.DEFAULT_SAMPLE_FLAGS_PRESENT in self.tf_flags:
-            ret += ' flags:{:x}'.format(
-                self._optional_fields[Flags.DEFAULT_SAMPLE_FLAGS_PRESENT]
-            )
-        return ret + ' ]'
+        return super().__repr__() + " trackId:" + str(self.track_id) +\
+               str(self._optional_fields) + ' ]'
 
     def to_bytes(self):
-        ret = super().to_bytes() + self.track_id.to_bytes(4, byteorder='big')
-        for key in self._optional_fields:
-            if key == Flags.BASE_DATA_OFFSET_PRESENT:
-                ret += self._optional_fields[key].to_bytes(8, byteorder='big')
-            else:
-                ret += self._optional_fields[key].to_bytes(4, byteorder='big')
-        return ret
+        return super().to_bytes() + self.track_id.to_bytes(4, byteorder='big') +\
+               self._optional_fields.to_bytes()
 
     def _readfile(self, file):
         self.track_id = int.from_bytes(self._readsome(file, 4), "big")
-        if Flags.BASE_DATA_OFFSET_PRESENT in self.tf_flags:
-            self._optional_fields[Flags.BASE_DATA_OFFSET_PRESENT] =\
-                int.from_bytes(self._readsome(file, 8), "big")
-            self.size += 8
-        if Flags.SAMPLE_DESCRIPTION_INDEX_PRESENT in self.tf_flags:
-            self._optional_fields[Flags.SAMPLE_DESCRIPTION_INDEX_PRESENT] =\
-                int.from_bytes(self._readsome(file, 4), "big")
-            self.size += 4
-        if Flags.DEFAULT_SAMPLE_DURATION_PRESENT in self.tf_flags:
-            self._optional_fields[Flags.DEFAULT_SAMPLE_DURATION_PRESENT] =\
-                int.from_bytes(self._readsome(file, 4), "big")
-            self.size += 4
-        if Flags.DEFAULT_SAMPLE_SIZE_PRESENT in self.tf_flags:
-            self._optional_fields[Flags.DEFAULT_SAMPLE_SIZE_PRESENT] =\
-                int.from_bytes(self._readsome(file, 4), "big")
-            self.size += 4
-        if Flags.DEFAULT_SAMPLE_FLAGS_PRESENT in self.tf_flags:
-            self._optional_fields[Flags.DEFAULT_SAMPLE_FLAGS_PRESENT] =\
-                int.from_bytes(self._readsome(file, 4), "big")
-            self.size += 4

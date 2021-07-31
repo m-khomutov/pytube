@@ -1,45 +1,47 @@
+"""Decoding time-to-sample"""
 from .atom import FullBox
 
 
 class Entry:
+    """Consecutive samples with the same duration"""
     def __init__(self, count, delta):
         self.count = count
         self.delta = delta
 
     def __repr__(self):
-        return str(self.count)+":"+str(self.delta)
+        return '{'+'{}:{}'.format(self.count, self.delta)+'}'
 
-    def encode(self):
+    def to_bytes(self):
+        """Returns sample the box entry as bytestream, ready to be sent to socket"""
         return self.count.to_bytes(4, byteorder='big') + self.delta.to_bytes(4, byteorder='big')
 
 
 class Box(FullBox):
+    """Decoding time-to-sample box"""
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        f = kwargs.get("file", None)
+        file = kwargs.get("file", None)
         self.entries = []
-        if f != None:
-            self._readfile(f)
+        if file is not None:
+            self._readfile(file)
         else:
             self.type = 'stts'
             self.size = 16
 
     def __repr__(self):
-        ret = super().__repr__() + " entries:"
-        for s in self.entries:
-            ret += "{" + s.__repr__() + "}"
-        return ret
+        return super().__repr__() + " entries:" + ''.join([str(k) for k in self.entries])
 
-    def _readfile(self, f):
-        count = int.from_bytes(self._readsome(f, 4), "big")
-        for i in range(count):
-            sample_count = int.from_bytes(self._readsome(f, 4), "big")
-            sample_delta = int.from_bytes(self._readsome(f, 4), "big")
-            self.entries.append(Entry(sample_count, sample_delta))
+    def _readfile(self, file):
+        count = int.from_bytes(self._readsome(file, 4), "big")
+        self.entries = list(map(lambda x: self._read_entry(file), range(count)))
 
-    def encode(self):
-        ret = super().encode()
-        ret += len(self.entries).to_bytes(4, byteorder='big')
-        for s in self.entries:
-            ret += s.encode();
+    def _read_entry(self, file):
+        """Get Entry from file"""
+        return Entry(int.from_bytes(self._readsome(file, 4), "big"),
+                     int.from_bytes(self._readsome(file, 4), "big"))
+
+    def to_bytes(self):
+        ret = super().to_bytes() + len(self.entries).to_bytes(4, byteorder='big')
+        for entry in self.entries:
+            ret += entry.to_bytes()
         return ret

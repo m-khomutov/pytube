@@ -8,23 +8,16 @@ class Frame:
     """Data frame to store in the run box"""
     duration, offset, size = 0, 0, 0
     composition_time = None
-    _data = b''
+    data = b''
 
-    def __repr__(self):
+    def __str__(self):
         return 'duration:{} offset:{} size:{} composition_time:{}'.format(self.duration,
                                                                           self.offset,
                                                                           self.size,
                                                                           self.composition_time)
 
-    @property
-    def data(self):
-        """data getter"""
-        return self._data
-
-    @data.setter
-    def data(self, value):
-        """data setter"""
-        self._data = value
+    def __repr__(self):
+        return self.__str__()
 
 
 class Flags(IntFlag):
@@ -44,15 +37,10 @@ class OptionalFields:
                         kwargs.get('size', None),
                         kwargs.get('flags', None),
                         kwargs.get('composition_time_offset', None))
-        self._initial_offset = kwargs.get('initial_offset', 0)
+        self.initial_offset = kwargs.get('initial_offset', 0)
 
     def __repr__(self):
         return '{' + ','.join(map(lambda x: '' if x is None else str(x), self._fields)) + '}'
-
-    @property
-    def initial_offset(self):
-        """returns box initial offset"""
-        return self._initial_offset
 
     def to_bytes(self):
         """Returns sample optional fields as bytestream, ready to be sent to socket"""
