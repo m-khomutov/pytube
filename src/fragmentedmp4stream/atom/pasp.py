@@ -1,19 +1,25 @@
-from .atom import Box
+"""Pixel aspect ratio. This extension is mandatory for video formats that use non-square pixels"""
+from .atom import Box as Atom
 
 
-class Box(Box):
+class Box(Atom):
+    """Pixel aspect ratio box"""
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        f = kwargs.get("file", None)
-        if f != None:
-            self.hspacing = int.from_bytes(self._readsome(f, 4), "big")
-            self.vspacing = int.from_bytes(self._readsome(f, 4), "big")
+        file = kwargs.get("file", None)
+        if file is not None:
+            self.h_spacing = int.from_bytes(self._readsome(file, 4), "big")
+            self.v_spacing = int.from_bytes(self._readsome(file, 4), "big")
         else:
             self.type = 'pasp'
             self.size = 16
-            self.hspacing = kwargs.get("hspacing", 0)
-            self.tr_flags = kwargs.get("vspacing", 0)
+            self.h_spacing = kwargs.get("h_spacing", 0)
+            self.v_spacing = kwargs.get("v_spacing", 0)
+
     def __repr__(self):
-        return super().__repr__() + ' hspacing:' + str(self.hspacing) + 'vspacing:' + str(self.vspacing)
-    def encode(self):
-        return super().encode() + self.hspacing.to_bytes(4, byteorder='big') + self.vspacing.to_bytes(4, byteorder='big')
+        return super().__repr__() +\
+               ' h_spacing:' + str(self.h_spacing) + 'v_spacing:' + str(self.v_spacing)
+
+    def to_bytes(self):
+        return super().to_bytes() + self.h_spacing.to_bytes(4, byteorder='big') +\
+                                    self.v_spacing.to_bytes(4, byteorder='big')

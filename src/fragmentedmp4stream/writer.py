@@ -181,8 +181,8 @@ class Writer:
         return size
 
     def _keyframe(self, frame):
-        if self.reader.vstream_type == stsd.VideoStreamType.AVC:
+        if self.reader.vstream_type == stsd.VideoCodecType.AVC:
             return frame[4] & 0x1f != 1
-        elif self.reader.vstream_type == stsd.VideoStreamType.HEVC:
+        elif self.reader.vstream_type == stsd.VideoCodecType.HEVC:
             return hvcc.NaluType.keyframe(hvcc.NaluHeader(frame))
         raise TypeError
