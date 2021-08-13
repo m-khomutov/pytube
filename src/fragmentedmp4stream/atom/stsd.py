@@ -54,7 +54,6 @@ class VisualSampleEntry(SampleEntry):
                 elif box.type == 'hvcC':
                     file.seek(box.position)
                     self.high_vcc_box = hvcc.Box(file=file, depth=self._depth + 1)
-                    print(str(self.high_vcc_box))
                     left -= self.high_vcc_box.size
                 elif box.type == 'pasp':
                     file.seek(box.position)
@@ -100,7 +99,7 @@ class VisualSampleEntry(SampleEntry):
         ret += self.color_depth.to_bytes(2, byteorder='big')
         ret += (0xffff).to_bytes(2, byteorder='big')
         if self.advanced_vcc_box is not None:
-            ret += self.advanced_vcc_box.encode()
+            ret += self.advanced_vcc_box.to_bytes()
         if self.high_vcc_box is not None:
             ret += self.high_vcc_box.encode()
         if self.pixel_aspect_ratio_box is not None:
