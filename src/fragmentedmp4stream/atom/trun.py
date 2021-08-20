@@ -11,10 +11,8 @@ class Frame:
     data = b''
 
     def __str__(self):
-        return 'duration:{} offset:{} size:{} composition_time:{}'.format(self.duration,
-                                                                          self.offset,
-                                                                          self.size,
-                                                                          self.composition_time)
+        return f'duration:{self.duration} offset:{self.offset}' \
+               f'size:{self.size} composition_time:{self.composition_time}'
 
     def __repr__(self):
         return self.__str__()
