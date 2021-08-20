@@ -73,10 +73,10 @@ if __name__ == "__main__":
     >mp4 file list of ~/video/
     ```json
     [
-      "MTV.mp4",
-      "Wingsuit.mp4",
-      "toystory.mp4",
-      "nuts720p_4Mb.mp4"
+      "MTV",
+      "Wingsuit",
+      "toystory",
+      "nuts720p_4Mb"
     ]
     ```
 

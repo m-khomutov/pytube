@@ -35,7 +35,7 @@ class ESDescriptor(Descriptor):
         self.stream_priority = file.read(1)[0]
 
     def __repr__(self):
-        return ' id:' + str(self.stream_id) + ' priority:' + str(self.stream_priority)
+        return f'id:{self.stream_id} priority:{self.stream_priority}'
 
     def to_bytes(self):
         return super().to_bytes() + self.stream_id.to_bytes(2, byteorder='big') + \
@@ -107,9 +107,9 @@ class ConfigDescriptor(Descriptor):
         self.av_bit_rate = int.from_bytes(file.read(4), 'big')
 
     def __repr__(self):
-        return " obj:'" + self._object_type + "' stream:'" + self._stream_type + "'" +\
-               " buf size:" + str(self.buffer_size) +\
-               " max br:" + str(self.max_bit_rate) + " av br:" + str(self.av_bit_rate)
+        return f" obj:'{self._object_type}' stream:'{self._stream_type}'" + \
+               f" buf size:{self.buffer_size} max br:{self.max_bit_rate}" + \
+               f" av br:{self.av_bit_rate}"
 
     def to_bytes(self):
         return super().to_bytes() + self.object_type_id.to_bytes(1, byteorder='big') + \
@@ -140,7 +140,7 @@ class SLConfigDescriptor(Descriptor):
         self.value = file.read(1)[0]
 
     def __repr__(self):
-        return " sl:" + str(self.value)
+        return f" sl:{self.value}"
 
     def to_bytes(self):
         return super().to_bytes() + self.value.to_bytes(1, byteorder='big')
@@ -164,7 +164,6 @@ class Box(FullBox):
             tag = file.read(1)[0]
             if tag == 3:
                 self.descriptors.append(ESDescriptor(file))
-                left = self.size - (file.tell() - self.position)
             elif tag == 4:
                 self.descriptors.append(ConfigDescriptor(file))
             elif tag == 5:
@@ -172,7 +171,8 @@ class Box(FullBox):
             elif tag == 6:
                 self.descriptors.append(SLConfigDescriptor(file))
             else:
-                left = 0
+                break
+            left = self.size - (file.tell() - self.position)
 
     def to_bytes(self):
         ret = super().to_bytes()

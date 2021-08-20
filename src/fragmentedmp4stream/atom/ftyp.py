@@ -1,33 +1,28 @@
-from .atom import Box
+"""File type and compatibility"""
+from .atom import Box as Atom
 
 
-class Box(Box):
+class Box(Atom):
+    """File type and compatibility box"""
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        f = kwargs.get("file", None)
-        if f != None:
-            self.majorBrand = self._readsome(f, 4).decode("utf-8")
-            self.minorVersion = int.from_bytes(self._readsome(f, 4), "big")
-            left=int((self.position + self.size - f.tell()) / 4)
-            self.compatible_brands=[]
-            for i in range(left):
-                self.compatible_brands.append(self._readsome(f, 4).decode("utf-8"))
-        pass
+        file = kwargs.get("file", None)
+        if file is not None:
+            self.major_brand = self._readsome(file, 4).decode("utf-8")
+            self.minor_version = int.from_bytes(self._readsome(file, 4), "big")
+            left = int((self.position + self.size - file.tell()) / 4)
+            self.compatible_brands = \
+                list(map(lambda x: self._readsome(file, 4).decode("utf-8"), range(left)))
 
     def __repr__(self):
-        ret = super().__repr__() + " majorBrand:" + self.majorBrand +\
-                                   " minorVersion:" + str(self.minorVersion) +\
-                                   " compatibleBrands:[ "
-        for brand in self.compatible_brands:
-            ret += brand + " "
-        ret += "]"
-
+        ret = super().__repr__() + \
+              f" majorBrand:{self.major_brand} minorVersion:{self.minor_version} compatibleBrands:["
+        ret += ' '.join(k for k in self.compatible_brands) + ']'
         return ret
 
-    def encode(self):
-        ret = super().encode()
-        ret += str.encode(self.majorBrand)
-        ret += self.minorVersion.to_bytes(4, byteorder='big')
+    def to_bytes(self):
+        ret = super().to_bytes()
+        ret += str.encode(self.major_brand) + self.minor_version.to_bytes(4, byteorder='big')
         for brand in self.compatible_brands:
             ret += str.encode(brand)
         return ret
