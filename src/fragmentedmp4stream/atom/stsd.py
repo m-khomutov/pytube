@@ -101,7 +101,7 @@ class VisualSampleEntry(SampleEntry):
         if self.advanced_vcc_box is not None:
             ret += self.advanced_vcc_box.to_bytes()
         if self.high_vcc_box is not None:
-            ret += self.high_vcc_box.encode()
+            ret += self.high_vcc_box.to_bytes()
         if self.pixel_aspect_ratio_box is not None:
             ret += self.pixel_aspect_ratio_box.to_bytes()
         if self.field_display_order is not None:

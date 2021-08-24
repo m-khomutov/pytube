@@ -31,4 +31,4 @@ class Box(Atom):
 
     def to_bytes(self):
         """Returns sample optional fields as bytestream, ready to be sent to socket"""
-        return super().encode() + self.video_field_order.to_bytes(2, byteorder="big")
+        return super().to_bytes() + self.video_field_order.to_bytes(2, byteorder="big")

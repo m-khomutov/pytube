@@ -184,5 +184,5 @@ class Writer:
         if self.reader.vstream_type == stsd.VideoCodecType.AVC:
             return frame[4] & 0x1f != 1
         elif self.reader.vstream_type == stsd.VideoCodecType.HEVC:
-            return hvcc.NaluType.keyframe(hvcc.NaluHeader(frame))
+            return hvcc.NetworkUnitHeader(frame[4:6]).keyframe()
         raise TypeError

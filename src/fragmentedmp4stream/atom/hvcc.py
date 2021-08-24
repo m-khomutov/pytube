@@ -1,17 +1,14 @@
-from . import atom
-from bitstring import ConstBitStream
+"""The decoder configuration record that this atom contains
+   is defined in the MPEG-4 specification ISO/IEC FDIS 14496-15
+"""
 from enum import IntEnum
+from functools import reduce
+from bitstring import ConstBitStream
+from . import atom
 
 
-class NaluHeader:
-    def __init__(self, frame):
-        bits = ConstBitStream(frame[4:6])
-        self.forbidden_zero_bit = bits.read('uint:1')
-        self.nal_unit_type = bits.read('uint:6')
-        self.nuh_layer_id = bits.read('uint:6')
-        self.nuh_temporal_id_plus1 = bits.read('uint:3')
-
-class NaluType(IntEnum):
+class NetworkUnitType(IntEnum):
+    """The Network Abstraction Layer types enumeration"""
     TRAIL_N = 0
     TRAIL_R = 1
     TSA_N = 2
@@ -46,91 +43,112 @@ class NaluType(IntEnum):
     PREFIX_SEI_NUT = 39
     SUFFIX_SEI_NUT = 40
 
-    @staticmethod
-    def keyframe(header):
-        return header.nal_unit_type >= NaluType.BLA_W_LP and header.nal_unit_type <= NaluType.RSV_IRAP_VCL23
+
+class NetworkUnitHeader:
+    """The Network Abstraction Layer header"""
+    def __init__(self, frame):
+        if len(frame) == 2:
+            bits = ConstBitStream(frame)
+            self.forbidden_zero_bit = bits.read('uint:1')
+            self.nal_unit_type = bits.read('uint:6')
+            self.nuh_layer_id = bits.read('uint:6')
+            self.nuh_temporal_id_plus1 = bits.read('uint:3')
+        else:
+            self.nal_unit_type = frame[0]
+
+    def __repr__(self):
+        if self.nal_unit_type == NetworkUnitType.VPS_NUT:
+            return "VPS"
+        if self.nal_unit_type == NetworkUnitType.SPS_NUT:
+            return "SPS"
+        if self.nal_unit_type == NetworkUnitType.PPS_NUT:
+            return "PPS"
+        return str(self.nal_unit_type)
+
+    def keyframe(self):
+        """Verifies if this is a keyframe"""
+        if self.nal_unit_type >= NetworkUnitType.BLA_W_LP:
+            return self.nal_unit_type <= NetworkUnitType.RSV_IRAP_VCL23
+        return False
+
+    def to_bytes(self):
+        """Returns header as bytestream, ready to be sent to socket"""
+        return self.nal_unit_type.to_bytes(1, byteorder='big')
+
 
 class ConfigSet:
-    def __init__(self, f):
-        self.type = f.read(1)[0]
-        self.count = int.from_bytes(f.read(2), 'big')
-        self.nalus = []
-        for c in range(self.count):
-            len = int.from_bytes(f.read(2), 'big')
-            self.nalus.append(f.read(len))
+    """Abstraction of a set of configuration"""
+    def __init__(self, file):
+        self.type = NetworkUnitHeader(file.read(1))
+        count = int.from_bytes(file.read(2), 'big')
+        self.sets = list(map(lambda x: self.read_configure_set(file), range(count)))
+
+    @staticmethod
+    def read_configure_set(file):
+        """reads a set of configuration  from file"""
+        length = int.from_bytes(file.read(2), 'big')
+        return file.read(length)
+
+    @staticmethod
+    def config_to_bytes(config):
+        """Returns a config set as bytestream, ready to be sent to socket"""
+        return len(config).to_bytes(2, byteorder='big') + config
+
     def __repr__(self):
-        ret = ""
-        if self.type == 32:
-            ret += "VPS:"
-        elif self.type == 33:
-            ret += "SPS:"
-        elif self.type == 34:
-            ret += "PPS:"
-        else:
-            ret += str(self.type) + ":"
-        ret += '['
-        for nalu in self.nalus:
-            ret += '[ '
-            for c in nalu:
-                ret += '{:x} '.format(c)
-            ret +=']'
-        ret +=']\n'
-        return ret;
-    def encode(self):
-        ret  = self.type.to_bytes(1, byteorder='big')
-        ret += self.count.to_bytes(2, byteorder='big')
-        for nalu in self.nalus:
-            ret += len(nalu).to_bytes(2, byteorder='big')
-            ret += nalu
+        ret = str(self.type)
+        ret += ''.join(
+            '[' + ' '.join('{:x}'.format(k) for k in s) + ']' for s in self.sets
+        )
         return ret
+
+    def to_bytes(self):
+        """Returns configuration sets as bytestream, ready to be sent to socket"""
+        ret = self.type.to_bytes()
+        ret += len(self.sets).to_bytes(2, byteorder='big')
+        ret += reduce(lambda a, b: a + b, (self.config_to_bytes(x) for x in self.sets))
+        return ret
+
 
 class Box(atom.Box):
+    """An MPEG-4 decoder configuration atom"""
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.configSets = []
-        f = kwargs.get("file", None)
-        if f != None:
-            self._readfile(f)
+        self.config_sets = []
+        file = kwargs.get("file", None)
+        if file is not None:
+            self._readfile(file)
 
     def __repr__(self):
-        ret = super().__repr__() + " genconfig:"
-        ret += '[ '
-        for c in self.general_config:
-            ret += '{:x} '.format(c)
-        ret +=']'
-        ret += " minSpacialSegmentation:" + hex(self.min_spacial_segmentation) + \
-               " parallelism:" + hex(self.parallelism) + \
-               " chromaFormatIdc:" + hex(self.chroma_format_idc & 3) + \
-               " bitDepthLuma:" + str((self.bit_depth_luma & 7)+8 ) + \
-               " bitDepthChroma:" + str((self.bit_depth_chroma & 7)+8 ) + \
-               " framerate:" + str(self.framerate) + "\n"
-        for cset in self.configSets:
-            ret += " " * (self._depth * 2) + str(cset)
+        ret = super().__repr__()
+        ret += " config:["+''.join('{:x}'.format(k) for k in self.general_config)+"]" + \
+               " minSpacialSegmentation:" + hex(self.min_spacial_segmentation) + \
+               " parallelism:" + hex(self.chroma[0]) + \
+               " chromaFormatIdc:" + hex(self.chroma[1] & 3) + \
+               " bitDepthLuma:" + str((self.bit_depth[0] & 7)+8) + \
+               " bitDepthChroma:" + str((self.bit_depth[1] & 7)+8) + \
+               " frameRate:" + str(self.frame_rate) + "\n" + \
+               "\n".join(' '*(self._depth*2) + str(k) for k in self.config_sets)
         return ret
-    def _readfile(self, f):
-        self._readsome(f, 1)
-        self.general_config = self._readsome(f, 12);
-        self.min_spacial_segmentation = int.from_bytes(self._readsome(f, 2), 'big')
-        self.parallelism = self._readsome(f, 1)[0]
-        self.chroma_format_idc = self._readsome(f, 1)[0]
-        self.bit_depth_luma = self._readsome(f, 1)[0]
-        self.bit_depth_chroma = self._readsome(f, 1)[0]
-        self.framerate = int.from_bytes(self._readsome(f, 2), 'big')
-        self.max_sub_layers = self._readsome(f, 1)[0]
-        number_of_nalus = self._readsome(f, 1)[0]
-        for i in range(number_of_nalus):
-            self.configSets.append(ConfigSet(f))
-    def encode(self):
-        ret = super().encode() + (1).to_bytes(1, byteorder="big") + \
+
+    def _readfile(self, file):
+        self._readsome(file, 1)
+        self.general_config = self._readsome(file, 12)
+        self.min_spacial_segmentation = int.from_bytes(self._readsome(file, 2), 'big')
+        self.chroma = self._readsome(file, 2)
+        self.bit_depth = self._readsome(file, 2)
+        self.frame_rate = int.from_bytes(self._readsome(file, 2), 'big')
+        self.max_sub_layers = self._readsome(file, 1)[0]
+        number_of_sets = self._readsome(file, 1)[0]
+        self.config_sets = list(map(lambda x: ConfigSet(file), range(number_of_sets)))
+
+    def to_bytes(self):
+        ret = super().to_bytes() + (1).to_bytes(1, byteorder="big") + \
                                  self.general_config + \
                                  self.min_spacial_segmentation.to_bytes(2, byteorder="big") + \
-                                 self.parallelism.to_bytes(1, byteorder="big") + \
-                                 self.chroma_format_idc.to_bytes(1, byteorder="big") + \
-                                 self.bit_depth_luma.to_bytes(1, byteorder="big") + \
-                                 self.bit_depth_chroma.to_bytes(1, byteorder="big") + \
-                                 self.framerate.to_bytes(2, byteorder="big") + \
+                                 self.chroma + \
+                                 self.bit_depth + \
+                                 self.frame_rate.to_bytes(2, byteorder="big") + \
                                  self.max_sub_layers.to_bytes(1, byteorder="big") + \
-                                 len(self.configSets).to_bytes(1, byteorder="big")
-        for cset in self.configSets:
-            ret += cset.encode()
+                                 len(self.config_sets).to_bytes(1, byteorder="big")
+        ret += reduce(lambda a, b: a + b, map(lambda x: x.to_bytes(), self.config_sets))
         return ret
