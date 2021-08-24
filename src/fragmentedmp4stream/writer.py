@@ -20,7 +20,7 @@ class Writer:
         self._set_moof()
         self.moof.find('mfhd')[0].sequence_number = self._sequence_number
         self._sequence_number += 1
-        ret = self.moof.encode() + self.mdat.encode()
+        ret = self.moof.encode() + self.mdat.to_bytes()
         return ret
     def fragment_moof(self):
         if self.last_chunk == True:

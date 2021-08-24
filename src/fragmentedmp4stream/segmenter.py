@@ -36,11 +36,11 @@ class Segmenter:
         for m in self.media_segments[index].moof:
             ret += m.encode()
             mdat_box = mdat.Box(type='mdat')
-            trun=m.find('trun')
+            trun = m.find('trun')
             for tr in trun:
                 for sample in tr.samples:
                     mdat_box.append(self.reader.sample(sample.initial_offset, sample.size))
-            ret += mdat_box.encode()
+            ret += mdat_box.to_bytes()
         return ret
 
     def _prepare_playlist(self):
