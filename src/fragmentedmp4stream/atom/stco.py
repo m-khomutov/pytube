@@ -1,30 +1,33 @@
+"""The chunk offset table gives the index of each chunk into the containing file"""
 from .atom import FullBox
 
 
 class Box(FullBox):
+    """Chunk offset, partial data-offset information"""
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        f = kwargs.get("file", None)
+        file = kwargs.get("file", None)
         self.entries = []
-        if f != None:
-            self._readfile(f)
+        if file is not None:
+            self._readfile(file)
         else:
             self.type = 'stco'
             self.size = 16
-    def __repr__(self):
-        ret = super().__repr__() + " offsets:[ "
-        for off in self.entries:
-            ret += str(off) + ' '
-        ret += "]"
-        return ret
-    def _readfile(self, f):
-        count = int.from_bytes(self._readsome(f, 4), "big")
-        for i in range(count):
-            self.entries.append(int.from_bytes(self._readsome(f, 4), "big"))
 
-    def encode(self):
-        ret = super().encode()
-        ret += len(self.entries).to_bytes(4, byteorder='big')
-        for off in self.entries:
-            ret += off.to_bytes(4, byteorder='big')
+    def __repr__(self):
+        ret = super().__repr__() + \
+              ' offsets:[' + ' '.join(str(k) for k in self.entries) + ']'
+        return ret
+
+    def _readfile(self, file):
+        count = int.from_bytes(self._readsome(file, 4), "big")
+        self.entries = list(
+            map(lambda x: int.from_bytes(self._readsome(file, 4), "big"), range(count))
+        )
+
+    def to_bytes(self):
+        ret = super().to_bytes() + \
+              len(self.entries).to_bytes(4, byteorder='big')
+        for entry in self.entries:
+            ret += entry.to_bytes(4, byteorder='big')
         return ret
