@@ -18,7 +18,7 @@ class Box(Atom):
 
     def __repr__(self):
         return super().__repr__() +\
-               ' h_spacing:' + str(self.h_spacing) + 'v_spacing:' + str(self.v_spacing)
+               f' h_spacing:{self.h_spacing} v_spacing:{self.v_spacing}'
 
     def to_bytes(self):
         return super().to_bytes() + self.h_spacing.to_bytes(4, byteorder='big') +\

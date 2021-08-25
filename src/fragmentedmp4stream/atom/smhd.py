@@ -1,23 +1,26 @@
+"""The sound media header contains general presentation information,
+   independent of the coding, for audio media
+"""
 from .atom import FullBox
 
 
 class Box(FullBox):
+    """Sound media header, overall information (sound track only"""
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        f = kwargs.get("file", None)
-        if f != None:
-            self._readfile(f)
+        file = kwargs.get("file", None)
+        if file is not None:
+            self._readfile(file)
 
     def __repr__(self):
-        ret = super().__repr__() + " balance:" + str(self.balance)
-        return ret
+        return super().__repr__() + f" balance:{self.balance}"
 
-    def _readfile(self, f):
-        self.balance = int.from_bytes(self._readsome(f, 2), "big")
-        self._readsome(f, 2)
+    def _readfile(self, file):
+        self.balance = int.from_bytes(self._readsome(file, 2), "big")
+        self._readsome(file, 2)
 
-    def encode(self):
-        ret = super().encode()
-        ret += self.balance.to_bytes(2, byteorder='big')
-        ret += (0).to_bytes(2, byteorder='big')
+    def to_bytes(self):
+        ret = super().to_bytes() + \
+              self.balance.to_bytes(2, byteorder='big') + \
+              (0).to_bytes(2, byteorder='big')
         return ret
