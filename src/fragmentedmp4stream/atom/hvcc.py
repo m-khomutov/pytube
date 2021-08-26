@@ -133,14 +133,14 @@ class Box(atom.Box):
         return ret
 
     def _readfile(self, file):
-        self._readsome(file, 1)
-        self.general_config = self._readsome(file, 12)
-        self.min_spacial_segmentation = int.from_bytes(self._readsome(file, 2), 'big')
-        self.chroma = self._readsome(file, 2)
-        self.bit_depth = self._readsome(file, 2)
-        self.frame_rate = int.from_bytes(self._readsome(file, 2), 'big')
-        self.max_sub_layers = self._readsome(file, 1)[0]
-        number_of_sets = self._readsome(file, 1)[0]
+        self._read_some(file, 1)
+        self.general_config = self._read_some(file, 12)
+        self.min_spacial_segmentation = int.from_bytes(self._read_some(file, 2), 'big')
+        self.chroma = self._read_some(file, 2)
+        self.bit_depth = self._read_some(file, 2)
+        self.frame_rate = int.from_bytes(self._read_some(file, 2), 'big')
+        self.max_sub_layers = self._read_some(file, 1)[0]
+        number_of_sets = self._read_some(file, 1)[0]
         self.config_sets = list(map(lambda x: ConfigSet(file), range(number_of_sets)))
 
     def to_bytes(self):

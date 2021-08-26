@@ -23,20 +23,20 @@ class Box(FullBox):
 
     def _readfile(self, file):
         if self.version == 1:
-            self.creation_time = int.from_bytes(self._readsome(file, 8), "big")
-            self.modification_time = int.from_bytes(self._readsome(file, 8), "big")
-            self.timescale = int.from_bytes(self._readsome(file, 4), "big")
-            self.duration = int.from_bytes(self._readsome(file, 8), "big")
+            self.creation_time = int.from_bytes(self._read_some(file, 8), "big")
+            self.modification_time = int.from_bytes(self._read_some(file, 8), "big")
+            self.timescale = int.from_bytes(self._read_some(file, 4), "big")
+            self.duration = int.from_bytes(self._read_some(file, 8), "big")
         else:
-            self.creation_time = int.from_bytes(self._readsome(file, 4), "big")
-            self.modification_time = int.from_bytes(self._readsome(file, 4), "big")
-            self.timescale = int.from_bytes(self._readsome(file, 4), "big")
-            self.duration = int.from_bytes(self._readsome(file, 4), "big")
+            self.creation_time = int.from_bytes(self._read_some(file, 4), "big")
+            self.modification_time = int.from_bytes(self._read_some(file, 4), "big")
+            self.timescale = int.from_bytes(self._read_some(file, 4), "big")
+            self.duration = int.from_bytes(self._read_some(file, 4), "big")
 
-        lang = BitArray(self._readsome(file, 2))
+        lang = BitArray(self._read_some(file, 2))
         self.language = ''.join(chr(k) for k in
                                 map(lambda x: int(lang[x+1:x+6].bin, 2)+0x60, range(0, 15, 5)))
-        self._readsome(file, 2)
+        self._read_some(file, 2)
 
     def to_bytes(self):
         ret = super().to_bytes()

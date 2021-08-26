@@ -26,24 +26,24 @@ class Box(FullBox):
 
     def _readfile(self, file):
         if self.version == 1:
-            self.time = (int.from_bytes(self._readsome(file, 8), "big"),
-                         int.from_bytes(self._readsome(file, 8), "big"))
-            self.timescale = int.from_bytes(self._readsome(file, 4), "big")
-            self.duration = int.from_bytes(self._readsome(file, 8), "big")
+            self.time = (int.from_bytes(self._read_some(file, 8), "big"),
+                         int.from_bytes(self._read_some(file, 8), "big"))
+            self.timescale = int.from_bytes(self._read_some(file, 4), "big")
+            self.duration = int.from_bytes(self._read_some(file, 8), "big")
         else:
-            self.time = (int.from_bytes(self._readsome(file, 4), "big"),
-                         int.from_bytes(self._readsome(file, 4), "big"))
-            self.timescale = int.from_bytes(self._readsome(file, 4), "big")
-            self.duration = int.from_bytes(self._readsome(file, 4), "big")
+            self.time = (int.from_bytes(self._read_some(file, 4), "big"),
+                         int.from_bytes(self._read_some(file, 4), "big"))
+            self.timescale = int.from_bytes(self._read_some(file, 4), "big")
+            self.duration = int.from_bytes(self._read_some(file, 4), "big")
 
-        self.rate = int.from_bytes(self._readsome(file, 4), "big")
-        self.volume = int.from_bytes(self._readsome(file, 2), "big")
-        self._readsome(file, 10)
+        self.rate = int.from_bytes(self._read_some(file, 4), "big")
+        self.volume = int.from_bytes(self._read_some(file, 2), "big")
+        self._read_some(file, 10)
         self.matrix = list(
-            map(lambda x: int.from_bytes(self._readsome(file, 4), "big"), range(9))
+            map(lambda x: int.from_bytes(self._read_some(file, 4), "big"), range(9))
         )
-        self._readsome(file, 24)
-        self.next_track_id = int.from_bytes(self._readsome(file, 4), "big")
+        self._read_some(file, 24)
+        self.next_track_id = int.from_bytes(self._read_some(file, 4), "big")
 
     def to_bytes(self):
         ret = super().to_bytes()

@@ -20,8 +20,8 @@ class Box(FullBox):
 
     def _readfile(self, file):
         """Reads Box from file"""
-        self._graphics_mode = int.from_bytes(self._readsome(file, 2), "big")
-        self._color_channels = list(map(lambda x: int.from_bytes(self._readsome(file, 2), "big"),
+        self._graphics_mode = int.from_bytes(self._read_some(file, 2), "big")
+        self._color_channels = list(map(lambda x: int.from_bytes(self._read_some(file, 2), "big"),
                                         range(3)))
 
     def to_bytes(self):

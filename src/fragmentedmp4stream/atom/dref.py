@@ -16,9 +16,9 @@ class Entry(FullBox):
             self.location = ''
             size_left = self.size - (file.tell() - self.position)
             if size_left > 0:
-                bytes_left = self._readsome(file, size_left)
+                bytes_left = self._read_some(file, size_left)
                 if self.type == 'urn ':
-                    name_div = bytes_left.find('\x00')
+                    name_div = bytes_left.find_inner_boxes('\x00')
                     self.name = bytes_left[:name_div+1].decode('utf-8')
                     self.location = bytes_left[name_div+1:].decode('utf-8')
                 else:
@@ -54,7 +54,7 @@ class Box(FullBox):
                ''.join(['\n'+str(k) for k in self._entries])
 
     def _readfile(self, file):
-        count = int.from_bytes(self._readsome(file, 4), "big")
+        count = int.from_bytes(self._read_some(file, 4), "big")
         self._entries = list(map(lambda x: Entry(file=file, depth=self._depth+1), range(count)))
 
     def to_bytes(self):

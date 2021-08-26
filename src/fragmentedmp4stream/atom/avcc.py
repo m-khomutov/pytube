@@ -30,24 +30,24 @@ class Box(atom.Box):
 
     def _readfile(self, file):
         self.initial_parameters = file.read(4)
-        self.unit_len = self._readsome(file, 1)[0] & 3  # 1 byte = 0; 2 bytes = 1; 4 bytes = 3
-        count = self._readsome(file, 1)[0] & 0x1f
+        self.unit_len = self._read_some(file, 1)[0] & 3  # 1 byte = 0; 2 bytes = 1; 4 bytes = 3
+        count = self._read_some(file, 1)[0] & 0x1f
         actual_size = 14
         self.sps = list(map(lambda x: self._read_parameter_set(file), range(count)))
         for sps in self.sps:
             actual_size += len(sps) + 2
-        count = self._readsome(file, 1)[0]
+        count = self._read_some(file, 1)[0]
         actual_size += 1
         self.pps = list(map(lambda x: self._read_parameter_set(file), range(count)))
         for pps in self.pps:
             actual_size += len(pps) + 2
         self.appendix = b'' if actual_size >= self.size \
-            else self._readsome(file, self.size - actual_size)
+            else self._read_some(file, self.size - actual_size)
 
     def _read_parameter_set(self, file):
         """reads one parameter set from file"""
-        length = int.from_bytes(self._readsome(file, 2), 'big')
-        return self._readsome(file, length)
+        length = int.from_bytes(self._read_some(file, 2), 'big')
+        return self._read_some(file, length)
 
     def to_bytes(self):
         ret = super().to_bytes() + self.initial_parameters

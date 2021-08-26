@@ -18,7 +18,7 @@ class Writer:
         if self.last_chunk:
             raise FragmentationFinished("done")
         self._set_moof()
-        self.moof.find('mfhd')[0].sequence_number = self._sequence_number
+        self.moof.find_inner_boxes('mfhd')[0].sequence_number = self._sequence_number
         self._sequence_number += 1
         ret = self.moof.to_bytes() + self.mdat.to_bytes()
         return ret
@@ -27,7 +27,7 @@ class Writer:
         if self.last_chunk == True:
             raise FragmentationFinished("done")
         self._set_moof()
-        self.moof.find('mfhd')[0].sequence_number = self._sequence_number
+        self.moof.find_inner_boxes('mfhd')[0].sequence_number = self._sequence_number
         self._sequence_number += 1
         return self.moof
     def _set_ftyp(self):
@@ -35,50 +35,50 @@ class Writer:
         if len(ftyp) != 1:
             raise SyntaxError( "ftyp is not found" )
         self.ftyp = ftyp[0]
-        self.base_offset = self.ftyp.fullsize()
+        self.base_offset = self.ftyp.full_size()
     def _set_moov(self):
         self.moov = Box(type='moov')
-        self.moov.store(self.reader.find('mvhd')[0])
+        self.moov.add_inner_box(self.reader.find('mvhd')[0])
         self.trakmap = {}
         self.sttsmap = {}
         self.first_vframe = trun.Frame()
         itrak = self.reader.find('trak')
         for tr in itrak:
             otrak = Box(type='trak')
-            tkhd = tr.find('tkhd')[0]
-            otrak.store(tkhd)
-            otrak.store(Box(type='mdia'))
-            otrak.store(tr.find('mdhd')[0],'mdia')
-            hdlr = tr.find('hdlr')[0]
+            tkhd = tr.find_inner_boxes('tkhd')[0]
+            otrak.add_inner_box(tkhd)
+            otrak.add_inner_box(Box(type='mdia'))
+            otrak.add_inner_box(tr.find_inner_boxes('mdhd')[0], 'mdia')
+            hdlr = tr.find_inner_boxes('hdlr')[0]
             self.trakmap[tkhd.track_id] = hdlr.handler_type
-            self.sttsmap[tkhd.track_id] = tr.find('stts')[0]
-            otrak.store(hdlr,'mdia')
-            otrak.store(Box(type='minf'), 'mdia')
+            self.sttsmap[tkhd.track_id] = tr.find_inner_boxes('stts')[0]
+            otrak.add_inner_box(hdlr, 'mdia')
+            otrak.add_inner_box(Box(type='minf'), 'mdia')
             if hdlr.handler_type == 'vide':
-                otrak.store(tr.find('vmhd')[0],'minf')
+                otrak.add_inner_box(tr.find_inner_boxes('vmhd')[0], 'minf')
             elif hdlr.handler_type == 'soun':
-                otrak.store(tr.find('smhd')[0], 'minf')
+                otrak.add_inner_box(tr.find_inner_boxes('smhd')[0], 'minf')
             elif hdlr.handler_type == 'text':
-                otrak.store(FullBox(type='nmhd'), 'minf')
-            otrak.store(Box(type='dinf'), 'minf')
-            otrak.store(tr.find('dref')[0],'dinf')
-            otrak.store(Box(type='stbl'), 'minf')
-            otrak.store(stts.Box(), 'stbl')
-            stsd=tr.find('stsd')
+                otrak.add_inner_box(FullBox(type='nmhd'), 'minf')
+            otrak.add_inner_box(Box(type='dinf'), 'minf')
+            otrak.add_inner_box(tr.find_inner_boxes('dref')[0], 'dinf')
+            otrak.add_inner_box(Box(type='stbl'), 'minf')
+            otrak.add_inner_box(stts.Box(), 'stbl')
+            stsd=tr.find_inner_boxes('stsd')
             if len(stsd) > 0:
                 stsd[0].normalize()
-                otrak.store(stsd[0],'stbl')
-            otrak.store(stsz.Box(), 'stbl')
-            otrak.store(stsc.Box(), 'stbl')
-            otrak.store(stco.Box(), 'stbl')
-            self.moov.store(otrak)
-        self.moov.store(Box(type='mvex'))
+                otrak.add_inner_box(stsd[0], 'stbl')
+            otrak.add_inner_box(stsz.Box(), 'stbl')
+            otrak.add_inner_box(stsc.Box(), 'stbl')
+            otrak.add_inner_box(stco.Box(), 'stbl')
+            self.moov.add_inner_box(otrak)
+        self.moov.add_inner_box(Box(type='mvex'))
         for id in self.trakmap.keys():
-            self.moov.store(trex.Box(track_id=id), 'mvex')
-        self.base_offset += self.moov.fullsize()
+            self.moov.add_inner_box(trex.Box(track_id=id), 'mvex')
+        self.base_offset += self.moov.full_size()
     def _set_moof(self):
         self.moof=Box(type='moof')
-        self.moof.store(mfhd.Box())
+        self.moof.add_inner_box(mfhd.Box())
         tf_flags = tfhd.Flags.BASE_DATA_OFFSET_PRESENT |\
                    tfhd.Flags.DEFAULT_SAMPLE_DURATION_PRESENT |\
                    tfhd.Flags.DEFAULT_SAMPLE_FLAGS_PRESENT
@@ -86,7 +86,7 @@ class Writer:
         mdat_size = {}
         for id in self.trakmap.keys():
             traf = Box(type='traf')
-            self.moof.store(traf)
+            self.moof.add_inner_box(traf)
             sample_flags = trex.SampleFlags(1, True)
             tr_flags = trun.Flags.DATA_OFFSET | trun.Flags.FIRST_SAMPLE_FLAGS | trun.Flags.SAMPLE_SIZE
             if self.trakmap[id] == 'vide':
@@ -99,25 +99,25 @@ class Writer:
                 tf_flags = tfhd.Flags.BASE_DATA_OFFSET_PRESENT
                 tr_flags = trun.Flags.DATA_OFFSET | trun.Flags.SAMPLE_SIZE | trun.Flags.SAMPLE_DURATION
                 sample_flags = trex.SampleFlags(0, False)
-            traf.store(tfhd.Box(flags=tf_flags,
-                                track_id=id,
-                                data_offset=self.base_offset,
-                                default_sample_duration=self.sttsmap[id].entries[0].delta,
-                                default_sample_flags=int(sample_flags)))
+            traf.add_inner_box(tfhd.Box(flags=tf_flags,
+                                        track_id=id,
+                                        data_offset=self.base_offset,
+                                        default_sample_duration=self.sttsmap[id].entries[0].delta,
+                                        default_sample_flags=int(sample_flags)))
             first_sample_flags = trex.SampleFlags(2, False)
             trun_boxes[id] = trun.Box(flags=tr_flags, first_sample_flags=int(first_sample_flags))
-            traf.store(trun_boxes[id])
+            traf.add_inner_box(trun_boxes[id])
             if self.trakmap[id] == 'vide':
                 mdat_size[id]=self._set_video_chunk(id, trun_boxes[id])
             elif self.trakmap[id] == 'soun':
                 mdat_size[id]=self._set_audio_sample(id, trun_boxes[id])
             else:
                 mdat_size[id]=self._set_text_sample(id, trun_boxes[id])
-        trun_data_offset = self.moof.fullsize() + 8
+        trun_data_offset = self.moof.full_size() + 8
         for id in trun_boxes.keys():
             trun_boxes[id].data_offset = trun_data_offset
             trun_data_offset += mdat_size[id]
-        self.base_offset += self.moof.fullsize() + self.mdat.size
+        self.base_offset += self.moof.full_size() + self.mdat.size
     def _set_video_chunk(self, trakid, trun_box):
         self.mdat = mdat.Box(type='mdat')
         self.chunk_duration = 0

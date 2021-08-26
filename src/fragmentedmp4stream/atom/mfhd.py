@@ -8,7 +8,7 @@ class Box(FullBox):
         super().__init__(*args, **kwargs)
         file = kwargs.get("file", None)
         if file is not None:
-            self.sequence_number = int.from_bytes(self._readsome(file, 4), "big")
+            self.sequence_number = int.from_bytes(self._read_some(file, 4), "big")
         else:
             self.size = 16
             self.type = 'mfhd'

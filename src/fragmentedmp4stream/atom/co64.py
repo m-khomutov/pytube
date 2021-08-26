@@ -21,8 +21,8 @@ class Box(FullBox):
         return super().__repr__() + ' offsets:[' + ' '.join([str(k) for k in self.entries]) + ']'
 
     def _readfile(self, file):
-        count = int.from_bytes(self._readsome(file, 4), "big")
-        self.entries = [map(lambda: int.from_bytes(self._readsome(file, 8), 'big'), range(count))]
+        count = int.from_bytes(self._read_some(file, 4), "big")
+        self.entries = [map(lambda: int.from_bytes(self._read_some(file, 8), 'big'), range(count))]
 
     def to_bytes(self):
         ret = super().to_bytes() + len(self.entries).to_bytes(4, byteorder='big')

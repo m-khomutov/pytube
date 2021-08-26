@@ -22,12 +22,12 @@ class Box(FullBox):
         return ret + " size entries:[ " + ' '.join([str(k) for k in self.entries]) + ']'
 
     def _readfile(self, file):
-        self.sample_size = int.from_bytes(self._readsome(file, 4), "big")
-        self.sample_count = int.from_bytes(self._readsome(file, 4), "big")
+        self.sample_size = int.from_bytes(self._read_some(file, 4), "big")
+        self.sample_count = int.from_bytes(self._read_some(file, 4), "big")
         if self.sample_size == 0:
             self.entries =\
                 list(map(lambda x:
-                         int.from_bytes(self._readsome(file, 4), 'big'), range(self.sample_count)))
+                         int.from_bytes(self._read_some(file, 4), 'big'), range(self.sample_count)))
 
     def to_bytes(self):
         ret = super().to_bytes()

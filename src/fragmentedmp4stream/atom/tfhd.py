@@ -123,4 +123,4 @@ class Box(FullBox):
                self._optional_fields.to_bytes()
 
     def _readfile(self, file):
-        self.track_id = int.from_bytes(self._readsome(file, 4), "big")
+        self.track_id = int.from_bytes(self._read_some(file, 4), "big")

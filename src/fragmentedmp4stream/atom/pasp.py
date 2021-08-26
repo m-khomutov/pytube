@@ -8,8 +8,8 @@ class Box(Atom):
         super().__init__(*args, **kwargs)
         file = kwargs.get("file", None)
         if file is not None:
-            self.h_spacing = int.from_bytes(self._readsome(file, 4), "big")
-            self.v_spacing = int.from_bytes(self._readsome(file, 4), "big")
+            self.h_spacing = int.from_bytes(self._read_some(file, 4), "big")
+            self.v_spacing = int.from_bytes(self._read_some(file, 4), "big")
         else:
             self.type = 'pasp'
             self.size = 16

@@ -16,8 +16,8 @@ class Box(FullBox):
         return super().__repr__() + f" balance:{self.balance}"
 
     def _readfile(self, file):
-        self.balance = int.from_bytes(self._readsome(file, 2), "big")
-        self._readsome(file, 2)
+        self.balance = int.from_bytes(self._read_some(file, 2), "big")
+        self._read_some(file, 2)
 
     def to_bytes(self):
         ret = super().to_bytes() + \

@@ -105,24 +105,24 @@ class Box(FullBox):
         return ret + reduce(lambda a, b: a + b, map(lambda x: x.to_bytes(), self._samples))
 
     def _readfile(self, file):
-        count = int.from_bytes(self._readsome(file, 4), "big")
+        count = int.from_bytes(self._read_some(file, 4), "big")
         if Flags.DATA_OFFSET in self.tr_flags:
-            self.data_offset = int.from_bytes(self._readsome(file, 4), "big")
+            self.data_offset = int.from_bytes(self._read_some(file, 4), "big")
         if Flags.FIRST_SAMPLE_FLAGS in self.tr_flags:
-            self.first_sample_flags = int.from_bytes(self._readsome(file, 4), "big")
+            self.first_sample_flags = int.from_bytes(self._read_some(file, 4), "big")
         self._samples = [map(lambda: self._read_sample(file), range(count))]
 
     def _read_sample(self, file):
         """read sample fields in accordance with option flags"""
         duration = size = flags = time_offsets = None
         if Flags.SAMPLE_DURATION in self.tr_flags:
-            duration = int.from_bytes(self._readsome(file, 4), "big")
+            duration = int.from_bytes(self._read_some(file, 4), "big")
         if Flags.SAMPLE_SIZE in self.tr_flags:
-            size = int.from_bytes(self._readsome(file, 4), "big")
+            size = int.from_bytes(self._read_some(file, 4), "big")
         if Flags.SAMPLE_FLAGS in self.tr_flags:
-            flags = int.from_bytes(self._readsome(file, 4), "big")
+            flags = int.from_bytes(self._read_some(file, 4), "big")
         if Flags.SAMPLE_COMPOSITION_TIME_OFFSETS in self.tr_flags:
-            time_offsets = int.from_bytes(self._readsome(file, 4), "big")
+            time_offsets = int.from_bytes(self._read_some(file, 4), "big")
         return OptionalFields(duration=duration,
                               size=size,
                               flags=flags,

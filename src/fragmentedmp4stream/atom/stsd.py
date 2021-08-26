@@ -21,8 +21,8 @@ class SampleEntry(atom.Box):
         super().__init__(*args, **kwargs)
         file = kwargs.get("file", None)
         if file is not None:
-            self._readsome(file, 6)
-            self.data_reference_index = int.from_bytes(self._readsome(file, 2), "big")
+            self._read_some(file, 6)
+            self.data_reference_index = int.from_bytes(self._read_some(file, 2), "big")
 
     def __repr__(self):
         return super().__repr__() + f" dataRefIdx:{self.data_reference_index}"
@@ -40,16 +40,16 @@ class VisualSampleEntry(SampleEntry):
         super().__init__(*args, **kwargs)
         file = kwargs.get("file", None)
         if file is not None:
-            self._readsome(file, 16)
-            self.geometry = (int.from_bytes(self._readsome(file, 2), "big"),
-                             int.from_bytes(self._readsome(file, 2), "big"))
-            self.resolution = (int.from_bytes(self._readsome(file, 4), "big"),
-                               int.from_bytes(self._readsome(file, 4), "big"))
-            self._readsome(file, 4)
-            self.frame_count = int.from_bytes(self._readsome(file, 2), "big")
-            self.compressor_name = self._readsome(file, 32).decode("utf-8")
-            self.color_depth = int.from_bytes(self._readsome(file, 2), "big")
-            self._readsome(file, 2)
+            self._read_some(file, 16)
+            self.geometry = (int.from_bytes(self._read_some(file, 2), "big"),
+                             int.from_bytes(self._read_some(file, 2), "big"))
+            self.resolution = (int.from_bytes(self._read_some(file, 4), "big"),
+                               int.from_bytes(self._read_some(file, 4), "big"))
+            self._read_some(file, 4)
+            self.frame_count = int.from_bytes(self._read_some(file, 2), "big")
+            self.compressor_name = self._read_some(file, 32).decode("utf-8")
+            self.color_depth = int.from_bytes(self._read_some(file, 2), "big")
+            self._read_some(file, 2)
             left = self.size - (file.tell()-self.position)
             self.inner_boxes = {}  # [avcC hvcC pasp fiel]
             while left > 0:
@@ -113,11 +113,11 @@ class AudioSampleEntry(SampleEntry):
         super().__init__(*args, **kwargs)
         file = kwargs.get("file", None)
         if file is not None:
-            self._readsome(file, 8)
-            self.channel_count = int.from_bytes(self._readsome(file, 2), "big")
-            self.sample_size = int.from_bytes(self._readsome(file, 2), "big")
-            self._readsome(file, 4)
-            self.sample_rate = int.from_bytes(self._readsome(file, 4), "big")
+            self._read_some(file, 8)
+            self.channel_count = int.from_bytes(self._read_some(file, 2), "big")
+            self.sample_size = int.from_bytes(self._read_some(file, 2), "big")
+            self._read_some(file, 4)
+            self.sample_rate = int.from_bytes(self._read_some(file, 4), "big")
             left = self.size - (file.tell()-self.position)
             while left > 0:
                 box = atom.Box(file=file, depth=self._depth + 1)
@@ -308,7 +308,7 @@ class Box(atom.FullBox):
         self.size = 16 + sum([k.size for k in self.entries])
 
     def _readfile(self, file, handler):
-        count = int.from_bytes(self._readsome(file, 4), "big")
+        count = int.from_bytes(self._read_some(file, 4), "big")
         if handler is not None:
             self.entries = list(map(lambda x: self._read_entry(file, handler), range(count)))
 

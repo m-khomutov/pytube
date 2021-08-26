@@ -16,12 +16,12 @@ class Box(FullBox):
         return super().__repr__() + f" handler type:{self.handler_type} name:{self.name}"
 
     def _readfile(self, file):
-        self._readsome(file, 4)
-        self.handler_type = self._readsome(file, 4).decode("utf-8")
-        self._readsome(file, 12)
+        self._read_some(file, 4)
+        self.handler_type = self._read_some(file, 4).decode("utf-8")
+        self._read_some(file, 12)
         left = (self.size - (file.tell() - self.position))
         if left > 0:
-            self.name = self._readsome(file, left).decode("utf-8")
+            self.name = self._read_some(file, left).decode("utf-8")
 
     def to_bytes(self):
         ret = super().to_bytes() +\

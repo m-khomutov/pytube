@@ -133,7 +133,7 @@ class Reader:
     def find(self, type):
         ret = []
         for box in self.boxes:
-            rc = box.find(type)
+            rc = box.find_inner_boxes(type)
             if len(rc) > 0:
                 for b in rc:
                     ret.append(b)
@@ -225,7 +225,7 @@ class Reader:
         else:
             boxSize = box.size - (self.file.tell() - box.position)
             while boxSize > 0:
-                b = self._readBox(box.depth()+1)
+                b = self._readBox(box.indent + 1)
                 boxSize -= b.size
-                box.store(b)
+                box.add_inner_box(b)
         return box

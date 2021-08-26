@@ -24,7 +24,7 @@ class Box(Atom):
         super().__init__(*args, **kwargs)
         file = kwargs.get("file", None)
         if file is not None:
-            self.video_field_order = int.from_bytes(self._readsome(file, 2), 'big')
+            self.video_field_order = int.from_bytes(self._read_some(file, 2), 'big')
 
     def __repr__(self):
         return super().__repr__() + " videoFieldOrder:" + str(self.video_field_order)

@@ -1,38 +1,57 @@
-class BoxIterator:
-   def __init__(self, box):
-       self._box = box
-       self._index = 0
+"""MP4 files are formed as a series of objects, called boxes.
+   All data is contained in boxes; there is no other data within the file.
+"""
 
-   def __next__(self):
-       if self._index < len(self._box._storage):
-           result = self._box._storage[self._index]
-           self._index +=1
-           return result
-       raise StopIteration
+
+class BoxIterator:
+    """Makes Box iterable object"""
+    def __init__(self, box):
+        self._box = box
+        self._index = 0
+
+    def __next__(self):
+        if self._index < len(self._box.inner_boxes):
+            result = self._box.inner_boxes[self._index]
+            self._index += 1
+            return result
+        raise StopIteration
+
+    @property
+    def position(self):
+        """Returns current position in box iteration"""
+        return self._index
 
 
 class Box:
-    def __init__(self, *args, **kwargs):
+    """An object-oriented building block defined by a unique type identifier and length
+       called ‘atom’ in some specifications, including the first definition of MP4
+    """
+    @staticmethod
+    def _read_some(file, some):
+        ret = file.read(some)
+        if len(ret) == some:
+            return ret
+        raise EOFError()
+
+    def __init__(self, **kwargs):
         self._user_type = []
-        self._storage = []
+        self._inner_boxes = []
         self._depth = 0
         self.position = 0
         file = kwargs.get("file", None)
         if file is not None:
             self._fromfile(file, kwargs.get("depth", None))
-            return
-        self.type = kwargs.get("type", None)
-        self.size = 8
+        else:
+            self.type = kwargs.get("type", None)
+            self.size = 8
 
     def __repr__(self):
         ret = " " * (self._depth * 2) + \
-              "%s pos:%i size:%i" % (self.type, self.position, self.fullsize())
+              f"{self.type} pos:{self.position} size:{self.full_size()}"
         if len(self._user_type) == 16:
-            ret += " user type:" + str(self._user_type)
-
-        if type(self) is Box:
-            for s in self._storage:
-                ret += "\n" + s.__repr__()
+            ret += f" user type:{self._user_type}"
+        if isinstance(self, Box):
+            ret += ''.join('\n'+str(k) for k in self._inner_boxes)
         return ret
 
     def __str__(self):
@@ -41,88 +60,94 @@ class Box:
     def __iter__(self):
         return BoxIterator(self)
 
-    def store(self, box, parent_type=''):
+    def add_inner_box(self, box, parent_type=''):
+        """Adds atom to inner boxes"""
         if parent_type == '':
-            box._depth = self._depth + 2
-            self._storage.append(box)
+            box.indent = self._depth + 2
+            self._inner_boxes.append(box)
         else:
-            parent = self.find(parent_type)
+            parent = self.find_inner_boxes(parent_type)
             if len(parent) > 0:
-                parent[0].store(box)
+                parent[0].add_inner_box(box)
 
-    def find(self, searched_type):
+    def find_inner_boxes(self, searched_type):
+        """Finds all inner boxes of given type"""
         ret = []
         if searched_type == self.type:
             ret.append(self)
             return ret
-        for box in self._storage:
-            b = box.find(searched_type)
-            for i in b:
-                ret.append(i)
+        for box in self._inner_boxes:
+            ret.extend(box.find_inner_boxes(searched_type))
         return ret
 
     def container(self):
-        return self.type == 'moov' or self.type == 'trak' or self.type == 'edts' or \
-               self.type == 'mdia' or self.type == 'minf' or self.type == 'dinf' or \
-               self.type == 'stbl' or self.type == 'mvex' or self.type == 'moof' or \
-               self.type == 'traf'
+        """verifies if the box is container"""
+        ret = (self.type == 'moov' or self.type == 'trak' or self.type == 'edts')
+        ret = (ret or self.type == 'mdia' or self.type == 'minf' or self.type == 'dinf')
+        ret = (ret or self.type == 'stbl' or self.type == 'mvex' or self.type == 'moof')
+        return ret or self.type == 'traf'
 
-    def depth(self):
+    @property
+    def indent(self):
+        """Returns indentation for logging"""
         return self._depth
 
+    @indent.setter
+    def indent(self, value):
+        """Sets indentation for logging"""
+        self._depth = value
+
     def to_bytes(self):
-        sz = self.fullsize()
-        if sz >= 0xffffffff:
+        """Returns the box as bytestream, ready to be sent to socket"""
+        full_size = self.full_size()
+        if full_size >= 0xffffffff:
             ret = (1).to_bytes(4, byteorder='big')
         else:
-            ret = sz.to_bytes(4, byteorder='big')
+            ret = full_size.to_bytes(4, byteorder='big')
         ret += str.encode(self.type)
-        if sz >= 0xffffffff:
-            ret += sz.to_bytes(8, byteorder='big')
+        if full_size >= 0xffffffff:
+            ret += full_size.to_bytes(8, byteorder='big')
         if self.type == 'uuid':
             ret += self._user_type
-        if type(self) is Box:
-            for s in self._storage:
-                ret += s.to_bytes()
+        if isinstance(self, Box):
+            for box in self._inner_boxes:
+                ret += box.to_bytes()
         return ret
 
-    def fullsize(self):
+    def full_size(self):
+        """Returns whole size of the box with all inner boxes"""
         ret = self.size
-        for box in self._storage:
-            ret += box.fullsize()
+        for box in self._inner_boxes:
+            ret += box.full_size()
         return ret
 
-    def _readsome(self, f, chunk):
-        b = f.read(chunk)
-        if len(b) == chunk:
-            return b
-        raise EOFError()
-
-    def _fromfile(self, f, depth):
-        self.position = f.tell()
-        self.size = int.from_bytes(self._readsome(f, 4), "big")
-        self.type = self._readsome(f, 4).decode("utf-8")
-        if self.size == 1: int.from_bytes(self._readsome(f, 8), "big")
-        if self.type == 'uuid': self._utype = self._readsome(f, 16)
+    def _fromfile(self, file, depth):
+        self.position = file.tell()
+        self.size = int.from_bytes(self._read_some(file, 4), "big")
+        self.type = self._read_some(file, 4).decode("utf-8")
+        if self.size == 1:
+            int.from_bytes(self._read_some(file, 8), "big")
+        if self.type == 'uuid':
+            self._user_type = self._read_some(file, 16)
         self._depth = depth
 
 
 class FullBox(Box):
+    """A box with a version number and flags field"""
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         file = kwargs.get("file", None)
         if file is not None:
-            self.version = self._readsome(file, 1)[0]
-            self.flags = int.from_bytes(self._readsome(file, 3), "big")
+            self.version = self._read_some(file, 1)[0]
+            self.flags = int.from_bytes(self._read_some(file, 3), "big")
         else:
             self.version = kwargs.get("version", 0)
             self.flags = kwargs.get("flags", 0)
             self.size = 12
 
     def __repr__(self):
-        ret = super().__repr__() + " version:" + str(self.version) + " flags:" + hex(self.flags)
-        for s in self._storage:
-            ret += "\n" + s.__repr__()
+        ret = super().__repr__() + f" version:{self.version} flags:{self.flags:x}"
+        ret += '\n'.join(str(k) for k in self._inner_boxes)
         return ret
 
     def to_bytes(self):

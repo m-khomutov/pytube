@@ -45,7 +45,7 @@ class Box(FullBox):
         return ret
 
     def _readfile(self, file):
-        count = int.from_bytes(self._readsome(file, 4), "big")
+        count = int.from_bytes(self._read_some(file, 4), "big")
         self.entries = list(map(lambda x: Entry(file), range(count)))
 
     def to_bytes(self):

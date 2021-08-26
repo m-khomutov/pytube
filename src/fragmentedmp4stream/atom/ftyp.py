@@ -8,11 +8,11 @@ class Box(Atom):
         super().__init__(*args, **kwargs)
         file = kwargs.get("file", None)
         if file is not None:
-            self.major_brand = self._readsome(file, 4).decode("utf-8")
-            self.minor_version = int.from_bytes(self._readsome(file, 4), "big")
+            self.major_brand = self._read_some(file, 4).decode("utf-8")
+            self.minor_version = int.from_bytes(self._read_some(file, 4), "big")
             left = int((self.position + self.size - file.tell()) / 4)
             self.compatible_brands = \
-                list(map(lambda x: self._readsome(file, 4).decode("utf-8"), range(left)))
+                list(map(lambda x: self._read_some(file, 4).decode("utf-8"), range(left)))
 
     def __repr__(self):
         ret = super().__repr__() + \

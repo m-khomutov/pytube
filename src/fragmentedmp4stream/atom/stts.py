@@ -32,13 +32,13 @@ class Box(FullBox):
         return super().__repr__() + " entries:" + ''.join([str(k) for k in self.entries])
 
     def _readfile(self, file):
-        count = int.from_bytes(self._readsome(file, 4), "big")
+        count = int.from_bytes(self._read_some(file, 4), "big")
         self.entries = list(map(lambda x: self._read_entry(file), range(count)))
 
     def _read_entry(self, file):
         """Get Entry from file"""
-        return Entry(int.from_bytes(self._readsome(file, 4), "big"),
-                     int.from_bytes(self._readsome(file, 4), "big"))
+        return Entry(int.from_bytes(self._read_some(file, 4), "big"),
+                     int.from_bytes(self._read_some(file, 4), "big"))
 
     def to_bytes(self):
         ret = super().to_bytes() + len(self.entries).to_bytes(4, byteorder='big')

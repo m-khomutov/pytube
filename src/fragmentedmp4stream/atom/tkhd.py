@@ -29,31 +29,31 @@ class Box(FullBox):
     def _readfile(self, file):
         if self.version == 1:
             self.timing = (
-                int.from_bytes(self._readsome(file, 8), "big"),  # creation
-                int.from_bytes(self._readsome(file, 8), "big")   # modification
+                int.from_bytes(self._read_some(file, 8), "big"),  # creation
+                int.from_bytes(self._read_some(file, 8), "big")   # modification
             )
-            self.track_id = int.from_bytes(self._readsome(file, 4), "big")
-            self._readsome(file, 4)
-            self.duration = int.from_bytes(self._readsome(file, 8), "big")
+            self.track_id = int.from_bytes(self._read_some(file, 4), "big")
+            self._read_some(file, 4)
+            self.duration = int.from_bytes(self._read_some(file, 8), "big")
         else:
             self.timing = (
-                int.from_bytes(self._readsome(file, 4), "big"),  # creation
-                int.from_bytes(self._readsome(file, 4), "big")   # modification
+                int.from_bytes(self._read_some(file, 4), "big"),  # creation
+                int.from_bytes(self._read_some(file, 4), "big")   # modification
             )
-            self.track_id = int.from_bytes(self._readsome(file, 4), "big")
-            self._readsome(file, 4)
-            self.duration = int.from_bytes(self._readsome(file, 4), "big")
-        self._readsome(file, 8)
+            self.track_id = int.from_bytes(self._read_some(file, 4), "big")
+            self._read_some(file, 4)
+            self.duration = int.from_bytes(self._read_some(file, 4), "big")
+        self._read_some(file, 8)
         self.track_info = (
-            int.from_bytes(self._readsome(file, 2), "big"),  # layer
-            int.from_bytes(self._readsome(file, 2), "big"),  # alternate_group
-            int.from_bytes(self._readsome(file, 2), "big")   # volume
+            int.from_bytes(self._read_some(file, 2), "big"),  # layer
+            int.from_bytes(self._read_some(file, 2), "big"),  # alternate_group
+            int.from_bytes(self._read_some(file, 2), "big")   # volume
         )
-        self._readsome(file, 2)
+        self._read_some(file, 2)
         self.matrix = [int.from_bytes(k, 'big')
-                       for k in map(lambda x: self._readsome(file, 4), range(9))]
-        self.width = int.from_bytes(self._readsome(file, 4), "big")
-        self.height = int.from_bytes(self._readsome(file, 4), "big")
+                       for k in map(lambda x: self._read_some(file, 4), range(9))]
+        self.width = int.from_bytes(self._read_some(file, 4), "big")
+        self.height = int.from_bytes(self._read_some(file, 4), "big")
 
     def to_bytes(self):
         result = super().to_bytes()
