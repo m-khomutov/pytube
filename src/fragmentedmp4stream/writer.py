@@ -31,18 +31,18 @@ class Writer:
         self._sequence_number += 1
         return self.moof
     def _set_ftyp(self):
-        ftyp = self.reader.find('ftyp')
+        ftyp = self.reader.find_box('ftyp')
         if len(ftyp) != 1:
             raise SyntaxError( "ftyp is not found" )
         self.ftyp = ftyp[0]
         self.base_offset = self.ftyp.full_size()
     def _set_moov(self):
         self.moov = Box(type='moov')
-        self.moov.add_inner_box(self.reader.find('mvhd')[0])
+        self.moov.add_inner_box(self.reader.find_box('mvhd')[0])
         self.trakmap = {}
         self.sttsmap = {}
         self.first_vframe = trun.Frame()
-        itrak = self.reader.find('trak')
+        itrak = self.reader.find_box('trak')
         for tr in itrak:
             otrak = Box(type='trak')
             tkhd = tr.find_inner_boxes('tkhd')[0]
@@ -90,7 +90,7 @@ class Writer:
             sample_flags = trex.SampleFlags(1, True)
             tr_flags = trun.Flags.DATA_OFFSET | trun.Flags.FIRST_SAMPLE_FLAGS | trun.Flags.SAMPLE_SIZE
             if self.trakmap[id] == 'vide':
-                if self.reader.hasCT(id):
+                if self.reader.has_composition_time(id):
                     tr_flags |= trun.Flags.SAMPLE_COMPOSITION_TIME_OFFSETS
             elif self.trakmap[id] == 'soun':
                 sample_flags = trex.SampleFlags(2, False)
@@ -131,7 +131,7 @@ class Writer:
             vsize += self.first_vframe.size
         while True:
             try:
-                vframe = self.reader.nextSample(trakid)
+                vframe = self.reader.next_sample(trakid)
                 if len(vframe.data) == vframe.size:
                     if self._keyframe(vframe.data) and not self.mdat.empty():
                         self.first_vframe = vframe
@@ -154,7 +154,7 @@ class Writer:
         duration = 0
         while duration < self.chunk_duration:
             try:
-                sample = self.reader.nextSample(trakid)
+                sample = self.reader.next_sample(trakid)
                 if self.last_chunk == False:
                     duration += sample.duration / self.reader.timescale[trakid]
                 trun_box.add_sample(size=sample.size, duration=sample.duration, initial_offset=sample.offset)
@@ -168,7 +168,7 @@ class Writer:
         duration = 0
         while duration < self.chunk_duration:
             try:
-                sample = self.reader.nextSample(trakid)
+                sample = self.reader.next_sample(trakid)
                 if self.last_chunk == False:
                     duration += sample.duration / self.reader.timescale[trakid]
                 trun_box.add_sample(size=sample.size, duration=sample.duration, initial_offset=sample.offset)
@@ -182,8 +182,8 @@ class Writer:
         return size
 
     def _keyframe(self, frame):
-        if self.reader.vstream_type == stsd.VideoCodecType.AVC:
+        if self.reader.video_stream_type == stsd.VideoCodecType.AVC:
             return frame[4] & 0x1f != 1
-        elif self.reader.vstream_type == stsd.VideoCodecType.HEVC:
+        elif self.reader.video_stream_type == stsd.VideoCodecType.HEVC:
             return hvcc.NetworkUnitHeader(frame[4:6]).keyframe()
         raise TypeError
