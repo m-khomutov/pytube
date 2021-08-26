@@ -12,7 +12,7 @@ class Writer:
         self._set_moov()
 
     def init(self):
-        return self.ftyp.encode() + self.moov.encode()
+        return self.ftyp.to_bytes() + self.moov.to_bytes()
 
     def fragment(self):
         if self.last_chunk:
@@ -20,8 +20,9 @@ class Writer:
         self._set_moof()
         self.moof.find('mfhd')[0].sequence_number = self._sequence_number
         self._sequence_number += 1
-        ret = self.moof.encode() + self.mdat.to_bytes()
+        ret = self.moof.to_bytes() + self.mdat.to_bytes()
         return ret
+
     def fragment_moof(self):
         if self.last_chunk == True:
             raise FragmentationFinished("done")

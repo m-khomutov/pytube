@@ -63,6 +63,8 @@ class NetworkUnitHeader:
             return "SPS"
         if self.nal_unit_type == NetworkUnitType.PPS_NUT:
             return "PPS"
+        if self.nal_unit_type == NetworkUnitType.PREFIX_SEI_NUT:
+            return "SEI"
         return str(self.nal_unit_type)
 
     def keyframe(self):
