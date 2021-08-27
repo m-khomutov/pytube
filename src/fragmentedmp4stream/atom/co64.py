@@ -5,6 +5,11 @@ from functools import reduce
 from .atom import FullBox
 
 
+def atom_type():
+    """Returns this atom type"""
+    return 'co64'
+
+
 class Box(FullBox):
     """64-bit chunk offset box"""
     def __init__(self, *args, **kwargs):

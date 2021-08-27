@@ -6,6 +6,11 @@ from enum import IntEnum
 from . import atom, esds, avcc, hvcc, pasp, fiel
 
 
+def atom_type():
+    """Returns this atom type"""
+    return 'stsd'
+
+
 class VideoCodecType(IntEnum):
     """Supported codec enumeration"""
     UNKNOWN = 0

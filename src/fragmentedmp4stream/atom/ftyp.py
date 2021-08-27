@@ -2,6 +2,11 @@
 from .atom import Box as Atom
 
 
+def atom_type():
+    """Returns this atom type"""
+    return 'ftyp'
+
+
 class Box(Atom):
     """File type and compatibility box"""
     def __init__(self, *args, **kwargs):

@@ -3,6 +3,11 @@ from functools import reduce
 from .atom import FullBox
 
 
+def atom_type():
+    """Returns this atom type"""
+    return 'tkhd'
+
+
 class Box(FullBox):
     """Track header box"""
     def __init__(self, *args, **kwargs):

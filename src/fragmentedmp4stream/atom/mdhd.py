@@ -5,6 +5,11 @@ from bitstring import BitArray
 from .atom import FullBox
 
 
+def atom_type():
+    """Returns this atom type"""
+    return 'mdhd'
+
+
 class Box(FullBox):
     """Media header box, overall information about the media"""
     def __init__(self, *args, **kwargs):

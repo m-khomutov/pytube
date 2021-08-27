@@ -4,6 +4,11 @@
 from .atom import FullBox
 
 
+def atom_type():
+    """Returns this atom type"""
+    return 'hdlr'
+
+
 class Box(FullBox):
     """The media handler type box"""
     def __init__(self, *args, **kwargs):

@@ -1,7 +1,7 @@
 """Reads MP4 format file"""
 from .atom.atom import Box
-from .atom import ftyp, stco, stsc, mvhd, tkhd, mdhd, co64, stts, hdlr,\
-    ctts, vmhd, trun, stsd, smhd, dref, stsz, mfhd, tfhd
+from .atom import stco, stsc, stsz, tkhd, mdhd, co64, stts, ctts, hdlr, stsd, trun
+from .atom import ftyp, vmhd, mvhd, smhd, dref  # noqa # pylint: disable=unused-import
 
 
 class FragmentationFinished(Exception):
@@ -166,6 +166,7 @@ class Reader:
         self.timescale = {}
         self.track_id = 1
         self.video_stream_type = stsd.VideoCodecType.UNKNOWN
+        self.hdlr = ''
         self.file = open(filename, "rb")
         try:
             while True:
@@ -213,58 +214,10 @@ class Reader:
         """Reads a box from file"""
         box = Box(file=self.file, depth=depth)
         if not box.container():
-            self.file.seek(box.position)
-            if box.type == 'ftyp':
-                box = ftyp.Box(file=self.file, depth=depth)
-            elif box.type == 'mvhd':
-                box = mvhd.Box(file=self.file, depth=depth)
-            elif box.type == 'tkhd':
-                box = tkhd.Box(file=self.file, depth=depth)
-                self.track_id = box.track_id
-                self.samples_info[self.track_id] = SamplesInfo()
-            elif box.type == 'mdhd':
-                box = mdhd.Box(file=self.file, depth=depth)
-                self.timescale[self.track_id] = box.timescale
-            elif box.type == 'hdlr':
-                box = hdlr.Box(file=self.file, depth=depth)
-                self.hdlr = box.handler_type
-            elif box.type == 'vmhd':
-                box = vmhd.Box(file=self.file, depth=depth)
-            elif box.type == 'smhd':
-                box = smhd.Box(file=self.file, depth=depth)
-            elif box.type == 'dref':
-                box = dref.Box(file=self.file, depth=depth)
-            elif box.type == 'stts':
-                box = stts.Box(file=self.file, depth=depth)
-                self.samples_info[self.track_id].fill_decoding_time_info(box.entries)
-            elif box.type == 'ctts':
-                box = ctts.Box(file=self.file, depth=depth)
-                self.samples_info[self.track_id].fill_composition_time_info(box.entries)
-            elif box.type == 'stsd':
-                box = stsd.Box(file=self.file, depth=depth, hdlr=self.hdlr)
-                if self.hdlr == 'vide':
-                    self.video_stream_type = box.video_stream_type
-            elif box.type == 'stsz':
-                box = stsz.Box(file=self.file, depth=depth, hdlr=self.hdlr)
-                if box.sample_size == 0:
-                    self.samples_info[self.track_id].fill_sample_sizes_info(box.entries)
-                else:
-                    self.samples_info[self.track_id].fill_sample_sizes_info([box.sample_size])
-            elif box.type == 'stsc':
-                box = stsc.Box(file=self.file, depth=depth, hdlr=self.hdlr)
-                self.samples_info[self.track_id].fill_sample_chunk_info(box.entries)
-            elif box.type == 'stco':
-                box = stco.Box(file=self.file, depth=depth, hdlr=self.hdlr)
-                self.samples_info[self.track_id].fill_chunk_offset_info(box.entries)
-            elif box.type == 'co64':
-                box = co64.Box(file=self.file, depth=depth, hdlr=self.hdlr)
-                self.samples_info[self.track_id].fill_chunk_offset_info(box.entries)
-            elif box.type == 'mfhd':
-                box = mfhd.Box(file=self.file, depth=depth)
-            elif box.type == 'tfhd':
-                box = tfhd.Box(file=self.file, depth=depth)
-            elif box.type == 'trun':
-                box = trun.Box(file=self.file, depth=depth)
+            module = globals().get(box.type)
+            if module is not None:
+                self.file.seek(box.position)
+                box = self._get_info_box(module, depth)
             self.file.seek(box.position + box.size)
         else:
             box_size = box.size - (self.file.tell() - box.position)
@@ -273,3 +226,67 @@ class Reader:
                 box_size -= next_box.size
                 box.add_inner_box(next_box)
         return box
+
+    def _get_info_box(self, module, depth):
+        """Reads no container box from file"""
+        box = getattr(module, 'Box')(file=self.file, depth=depth, hdlr=self.hdlr)
+        try:
+            getattr(self, f'_on_{box.type}')(box)
+        except AttributeError:
+            pass
+        return box
+
+    def _on_tkhd(self, box):
+        """Manager Track header box"""
+        if box.type == tkhd.atom_type():
+            self.track_id = box.track_id
+            self.samples_info[self.track_id] = SamplesInfo()
+
+    def _on_mdhd(self, box):
+        """Manager Media header box"""
+        if box.type == mdhd.atom_type():
+            self.timescale[self.track_id] = box.timescale
+
+    def _on_hdlr(self, box):
+        """Manager Handler box"""
+        if box.type == hdlr.atom_type():
+            self.hdlr = box.handler_type
+
+    def _on_stts(self, box):
+        """Manager Sample Decoding Time box"""
+        if box.type == stts.atom_type():
+            self.samples_info[self.track_id].fill_decoding_time_info(box.entries)
+
+    def _on_ctts(self, box):
+        """Manager Sample Composition Time box"""
+        if box.type == ctts.atom_type():
+            self.samples_info[self.track_id].fill_composition_time_info(box.entries)
+
+    def _on_stsd(self, box):
+        """Manager Sample Descriptions box"""
+        if box.type == stsd.atom_type():
+            if self.hdlr == 'vide':
+                self.video_stream_type = box.video_stream_type
+
+    def _on_stsz(self, box):
+        """Manager Sample Sizes box"""
+        if box.type == stsz.atom_type():
+            if box.sample_size == 0:
+                self.samples_info[self.track_id].fill_sample_sizes_info(box.entries)
+            else:
+                self.samples_info[self.track_id].fill_sample_sizes_info([box.sample_size])
+
+    def _on_stsc(self, box):
+        """Manager Sample Chunk box"""
+        if box.type == stsc.atom_type():
+            self.samples_info[self.track_id].fill_sample_chunk_info(box.entries)
+
+    def _on_stco(self, box):
+        """Manager Sample Chunk Offsets box"""
+        if box.type == stco.atom_type():
+            self.samples_info[self.track_id].fill_chunk_offset_info(box.entries)
+
+    def _on_co64(self, box):
+        """Manager Sample Chunk 64bit Offsets box"""
+        if box.type == co64.atom_type():
+            self.samples_info[self.track_id].fill_chunk_offset_info(box.entries)

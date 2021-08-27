@@ -5,6 +5,11 @@ from functools import reduce
 from .atom import FullBox
 
 
+def atom_type():
+    """Returns this atom type"""
+    return 'mvhd'
+
+
 class Box(FullBox):
     """Movie header, overall declarations"""
     def __init__(self, *args, **kwargs):

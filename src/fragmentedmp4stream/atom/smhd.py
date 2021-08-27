@@ -4,6 +4,11 @@
 from .atom import FullBox
 
 
+def atom_type():
+    """Returns this atom type"""
+    return 'smhd'
+
+
 class Box(FullBox):
     """Sound media header, overall information (sound track only"""
     def __init__(self, *args, **kwargs):

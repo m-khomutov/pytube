@@ -6,6 +6,11 @@
 from .atom import FullBox
 
 
+def atom_type():
+    """Returns this atom type"""
+    return 'stsc'
+
+
 class Entry:
     """Gives the index of the first chunk of a run of chunks
        with the same characteristics

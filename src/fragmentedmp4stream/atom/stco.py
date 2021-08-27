@@ -2,6 +2,11 @@
 from .atom import FullBox
 
 
+def atom_type():
+    """Returns this atom type"""
+    return 'stco'
+
+
 class Box(FullBox):
     """Chunk offset, partial data-offset information"""
     def __init__(self, *args, **kwargs):

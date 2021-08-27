@@ -2,6 +2,11 @@
 from .atom import FullBox
 
 
+def atom_type():
+    """Returns this atom type"""
+    return 'stsz'
+
+
 class Box(FullBox):
     """Sample table box"""
     def __init__(self, *args, **kwargs):

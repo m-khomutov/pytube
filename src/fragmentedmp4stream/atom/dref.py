@@ -6,6 +6,11 @@ from functools import reduce
 from .atom import FullBox
 
 
+def atom_type():
+    """Returns this atom type"""
+    return 'dref'
+
+
 class Entry(FullBox):
     """Shall be either a DataEntryUrnBox or a DataEntryUrlBox"""
     def __init__(self, *args, **kwargs):

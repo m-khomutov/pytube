@@ -2,6 +2,11 @@
 from .atom import FullBox
 
 
+def atom_type():
+    """Returns this atom type"""
+    return 'stts'
+
+
 class Entry:
     """Consecutive samples with the same duration"""
     def __init__(self, count, delta):

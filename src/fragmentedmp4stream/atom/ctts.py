@@ -8,6 +8,11 @@ from functools import reduce
 from .atom import FullBox
 
 
+def atom_type():
+    """Returns this atom type"""
+    return 'ctts'
+
+
 class Entry:
     """Composition time to sample box entry"""
     def __init__(self, file):

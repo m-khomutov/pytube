@@ -3,6 +3,11 @@ from functools import reduce
 from .atom import FullBox
 
 
+def atom_type():
+    """Returns this atom type"""
+    return 'vmhd'
+
+
 class Box(FullBox):
     """Video media header box"""
     _graphics_mode = 0
