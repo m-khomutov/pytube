@@ -1,189 +1,231 @@
+"""generates fragmented MP4 format"""
 from .atom.atom import Box, FullBox
 from .atom import trex, stco, stsc, mfhd, stts, stsd, mdat, trun, tfhd, stsz, hvcc
-from .reader import FragmentationFinished
 
 
 class Writer:
+    """Fragmented MP4 format generator"""
     def __init__(self, reader):
         self.last_chunk = False
         self._sequence_number = 0
-        self.reader = reader
-        self._set_ftyp()
-        self._set_moov()
+        self._reader = reader
+        self._initializer = self._set_ftyp() + self._set_moov()
+        self.first_video_frame = trun.Frame()
 
-    def init(self):
-        return self.ftyp.to_bytes() + self.moov.to_bytes()
-
-    def fragment(self):
-        if self.last_chunk:
-            raise FragmentationFinished("done")
-        self._set_moof()
-        self.moof.find_inner_boxes('mfhd')[0].sequence_number = self._sequence_number
-        self._sequence_number += 1
-        ret = self.moof.to_bytes() + self.mdat.to_bytes()
-        return ret
+    @property
+    def initializer(self):
+        """Returns meta fragmented MP4 atoms"""
+        return self._initializer
 
     def fragment_moof(self):
-        if self.last_chunk == True:
-            raise FragmentationFinished("done")
-        self._set_moof()
-        self.moof.find_inner_boxes('mfhd')[0].sequence_number = self._sequence_number
-        self._sequence_number += 1
-        return self.moof
+        """Returns moof box with next fragment"""
+        if self.last_chunk:
+            raise StopIteration from None
+        return self._set_moof()
+
+    def __next__(self):
+        moof_box, mdat_box, duration = self.fragment_moof()
+        return moof_box.to_bytes() + mdat_box.to_bytes(), duration
+
+    def __iter__(self):
+        return self
+
     def _set_ftyp(self):
-        ftyp = self.reader.find_box('ftyp')
-        if len(ftyp) != 1:
-            raise SyntaxError( "ftyp is not found" )
-        self.ftyp = ftyp[0]
-        self.base_offset = self.ftyp.full_size()
+        """get ftyp atom from MP4 reader"""
+        try:
+            ftyp = self._reader.find_box('ftyp')[0]
+        except IndexError as index_error:
+            raise SyntaxError("ftyp is not found") from index_error
+        self.base_offset = ftyp.full_size()
+        return ftyp.to_bytes()
+
     def _set_moov(self):
-        self.moov = Box(type='moov')
-        self.moov.add_inner_box(self.reader.find_box('mvhd')[0])
-        self.trakmap = {}
-        self.sttsmap = {}
-        self.first_vframe = trun.Frame()
-        itrak = self.reader.find_box('trak')
-        for tr in itrak:
-            otrak = Box(type='trak')
-            tkhd = tr.find_inner_boxes('tkhd')[0]
-            otrak.add_inner_box(tkhd)
-            otrak.add_inner_box(Box(type='mdia'))
-            otrak.add_inner_box(tr.find_inner_boxes('mdhd')[0], 'mdia')
-            hdlr = tr.find_inner_boxes('hdlr')[0]
-            self.trakmap[tkhd.track_id] = hdlr.handler_type
-            self.sttsmap[tkhd.track_id] = tr.find_inner_boxes('stts')[0]
-            otrak.add_inner_box(hdlr, 'mdia')
-            otrak.add_inner_box(Box(type='minf'), 'mdia')
+        """get moov atom from MP4 reader"""
+        moov = Box(type='moov')
+        moov.add_inner_box(self._reader.find_box('mvhd')[0])
+        self.track_stts_map = {}
+        for track in self._reader.find_box('trak'):
+            track_box = Box(type='trak')
+            tkhd = track.find_inner_boxes('tkhd')[0]
+            track_box.add_inner_box(tkhd)
+            track_box.add_inner_box(Box(type='mdia'))
+            track_box.add_inner_box(track.find_inner_boxes('mdhd')[0], 'mdia')
+            hdlr = track.find_inner_boxes('hdlr')[0]
+            self.track_stts_map[tkhd.track_id] = (hdlr.handler_type,
+                                                  track.find_inner_boxes('stts')[0])
+            track_box.add_inner_box(hdlr, 'mdia')
+            track_box.add_inner_box(Box(type='minf'), 'mdia')
             if hdlr.handler_type == 'vide':
-                otrak.add_inner_box(tr.find_inner_boxes('vmhd')[0], 'minf')
+                track_box.add_inner_box(track.find_inner_boxes('vmhd')[0], 'minf')
             elif hdlr.handler_type == 'soun':
-                otrak.add_inner_box(tr.find_inner_boxes('smhd')[0], 'minf')
+                track_box.add_inner_box(track.find_inner_boxes('smhd')[0], 'minf')
             elif hdlr.handler_type == 'text':
-                otrak.add_inner_box(FullBox(type='nmhd'), 'minf')
-            otrak.add_inner_box(Box(type='dinf'), 'minf')
-            otrak.add_inner_box(tr.find_inner_boxes('dref')[0], 'dinf')
-            otrak.add_inner_box(Box(type='stbl'), 'minf')
-            otrak.add_inner_box(stts.Box(), 'stbl')
-            stsd=tr.find_inner_boxes('stsd')
-            if len(stsd) > 0:
-                stsd[0].normalize()
-                otrak.add_inner_box(stsd[0], 'stbl')
-            otrak.add_inner_box(stsz.Box(), 'stbl')
-            otrak.add_inner_box(stsc.Box(), 'stbl')
-            otrak.add_inner_box(stco.Box(), 'stbl')
-            self.moov.add_inner_box(otrak)
-        self.moov.add_inner_box(Box(type='mvex'))
-        for id in self.trakmap.keys():
-            self.moov.add_inner_box(trex.Box(track_id=id), 'mvex')
-        self.base_offset += self.moov.full_size()
+                track_box.add_inner_box(FullBox(type='nmhd'), 'minf')
+            track_box.add_inner_box(Box(type='dinf'), 'minf')
+            track_box.add_inner_box(track.find_inner_boxes('dref')[0], 'dinf')
+            track_box.add_inner_box(Box(type='stbl'), 'minf')
+            track_box.add_inner_box(stts.Box(), 'stbl')
+            stsd_box = track.find_inner_boxes('stsd')
+            if len(stsd_box) > 0:
+                stsd_box[0].normalize()
+                track_box.add_inner_box(stsd_box[0], 'stbl')
+            track_box.add_inner_box(stsz.Box(), 'stbl')
+            track_box.add_inner_box(stsc.Box(), 'stbl')
+            track_box.add_inner_box(stco.Box(), 'stbl')
+            moov.add_inner_box(track_box)
+        moov.add_inner_box(Box(type='mvex'))
+        for track_id in self.track_stts_map:
+            moov.add_inner_box(trex.Box(track_id=track_id), 'mvex')
+        self.base_offset += moov.full_size()
+        return moov.to_bytes()
+
     def _set_moof(self):
-        self.moof=Box(type='moof')
-        self.moof.add_inner_box(mfhd.Box())
+        moof_box = Box(type='moof')
+        mdat_box = mdat.Box(type='mdat')
+        chunk_duration = 0
+        moof_box.add_inner_box(mfhd.Box())
         tf_flags = tfhd.Flags.BASE_DATA_OFFSET_PRESENT |\
-                   tfhd.Flags.DEFAULT_SAMPLE_DURATION_PRESENT |\
-                   tfhd.Flags.DEFAULT_SAMPLE_FLAGS_PRESENT
+            tfhd.Flags.DEFAULT_SAMPLE_DURATION_PRESENT |\
+            tfhd.Flags.DEFAULT_SAMPLE_FLAGS_PRESENT
         trun_boxes = {}
         mdat_size = {}
-        for id in self.trakmap.keys():
-            traf = Box(type='traf')
-            self.moof.add_inner_box(traf)
+        for track_id in self.track_stts_map:
+            traf_box = Box(type='traf')
+            moof_box.add_inner_box(traf_box)
             sample_flags = trex.SampleFlags(1, True)
-            tr_flags = trun.Flags.DATA_OFFSET | trun.Flags.FIRST_SAMPLE_FLAGS | trun.Flags.SAMPLE_SIZE
-            if self.trakmap[id] == 'vide':
-                if self.reader.has_composition_time(id):
+            tr_flags = trun.Flags.DATA_OFFSET | \
+                trun.Flags.FIRST_SAMPLE_FLAGS | \
+                trun.Flags.SAMPLE_SIZE
+            if self.track_stts_map[track_id][0] == 'vide':
+                if self._reader.has_composition_time(track_id):
                     tr_flags |= trun.Flags.SAMPLE_COMPOSITION_TIME_OFFSETS
-            elif self.trakmap[id] == 'soun':
+            elif self.track_stts_map[track_id][0] == 'soun':
                 sample_flags = trex.SampleFlags(2, False)
-                tr_flags = trun.Flags.DATA_OFFSET | trun.Flags.SAMPLE_DURATION | trun.Flags.SAMPLE_SIZE
-            elif self.trakmap[id] == 'text':
+                tr_flags = trun.Flags.DATA_OFFSET | \
+                    trun.Flags.SAMPLE_DURATION | \
+                    trun.Flags.SAMPLE_SIZE
+            elif self.track_stts_map[track_id][0] == 'text':
                 tf_flags = tfhd.Flags.BASE_DATA_OFFSET_PRESENT
-                tr_flags = trun.Flags.DATA_OFFSET | trun.Flags.SAMPLE_SIZE | trun.Flags.SAMPLE_DURATION
+                tr_flags = trun.Flags.DATA_OFFSET | \
+                    trun.Flags.SAMPLE_SIZE | \
+                    trun.Flags.SAMPLE_DURATION
                 sample_flags = trex.SampleFlags(0, False)
-            traf.add_inner_box(tfhd.Box(flags=tf_flags,
-                                        track_id=id,
-                                        data_offset=self.base_offset,
-                                        default_sample_duration=self.sttsmap[id].entries[0].delta,
-                                        default_sample_flags=int(sample_flags)))
+            traf_box.add_inner_box(
+                tfhd.Box(flags=tf_flags,
+                         track_id=track_id,
+                         data_offset=self.base_offset,
+                         default_sample_duration=self.track_stts_map[track_id][1].entries[0].delta,
+                         default_sample_flags=int(sample_flags))
+            )
             first_sample_flags = trex.SampleFlags(2, False)
-            trun_boxes[id] = trun.Box(flags=tr_flags, first_sample_flags=int(first_sample_flags))
-            traf.add_inner_box(trun_boxes[id])
-            if self.trakmap[id] == 'vide':
-                mdat_size[id]=self._set_video_chunk(id, trun_boxes[id])
-            elif self.trakmap[id] == 'soun':
-                mdat_size[id]=self._set_audio_sample(id, trun_boxes[id])
+            trun_boxes[track_id] = trun.Box(flags=tr_flags,
+                                            first_sample_flags=int(first_sample_flags))
+            traf_box.add_inner_box(trun_boxes[track_id])
+            if self.track_stts_map[track_id][0] == 'vide':
+                mdat_size[track_id], duration = \
+                    self._set_video_chunk(track_id,
+                                          trun_boxes[track_id],
+                                          mdat_box)
+                chunk_duration = duration
+            elif self.track_stts_map[track_id][0] == 'soun':
+                mdat_size[track_id] = self._set_audio_sample(track_id,
+                                                             trun_boxes[track_id],
+                                                             mdat_box,
+                                                             chunk_duration)
             else:
-                mdat_size[id]=self._set_text_sample(id, trun_boxes[id])
-        trun_data_offset = self.moof.full_size() + 8
-        for id in trun_boxes.keys():
-            trun_boxes[id].data_offset = trun_data_offset
-            trun_data_offset += mdat_size[id]
-        self.base_offset += self.moof.full_size() + self.mdat.size
-    def _set_video_chunk(self, trakid, trun_box):
-        self.mdat = mdat.Box(type='mdat')
-        self.chunk_duration = 0
-        vsize = 0
-        if self.first_vframe.size > 0:
-            if self.first_vframe.composition_time != None:
-                trun_box.add_sample(size=self.first_vframe.size, time_offsets=self.first_vframe.composition_time, initial_offset=self.first_vframe.offset)
+                mdat_size[track_id] = self._set_text_sample(track_id,
+                                                            trun_boxes[track_id],
+                                                            mdat_box,
+                                                            chunk_duration)
+        trun_data_offset = moof_box.full_size() + 8
+        for track_id in trun_boxes:
+            trun_boxes[track_id].data_offset = trun_data_offset
+            trun_data_offset += mdat_size[track_id]
+        self.base_offset += moof_box.full_size() + mdat_box.size
+        moof_box.find_inner_boxes('mfhd')[0].sequence_number = self._sequence_number
+        self._sequence_number += 1
+        return moof_box, mdat_box, chunk_duration
+
+    def _set_video_chunk(self, track_id, trun_box, fragment_mdat):
+        chunk_duration = 0
+        chunk_size = 0
+        if self.first_video_frame.size > 0:
+            if self.first_video_frame.composition_time is not None:
+                trun_box.add_sample(size=self.first_video_frame.size,
+                                    time_offsets=self.first_video_frame.composition_time,
+                                    initial_offset=self.first_video_frame.offset)
             else:
-                trun_box.add_sample(size=self.first_vframe.size, initial_offset=self.first_vframe.offset)
-            self.mdat.append(self.first_vframe.data)
-            vsize += self.first_vframe.size
+                trun_box.add_sample(size=self.first_video_frame.size,
+                                    initial_offset=self.first_video_frame.offset)
+            fragment_mdat.append(self.first_video_frame.data)
+            chunk_size += self.first_video_frame.size
         while True:
             try:
-                vframe = self.reader.next_sample(trakid)
-                if len(vframe.data) == vframe.size:
-                    if self._keyframe(vframe.data) and not self.mdat.empty():
-                        self.first_vframe = vframe
-                        self.chunk_duration /= self.reader.timescale[trakid]
+                video_frame = self._reader.next_sample(track_id)
+                if len(video_frame.data) == video_frame.size:
+                    if self._keyframe(video_frame.data) and not fragment_mdat.empty():
+                        self.first_video_frame = video_frame
+                        chunk_duration /= self._reader.timescale[track_id]
                         break
-                    if vframe.composition_time != None:
-                        trun_box.add_sample(size=vframe.size, time_offsets=vframe.composition_time, initial_offset=vframe.offset)
+                    if video_frame.composition_time is not None:
+                        trun_box.add_sample(size=video_frame.size,
+                                            time_offsets=video_frame.composition_time,
+                                            initial_offset=video_frame.offset)
                     else:
-                        trun_box.add_sample(size=vframe.size, initial_offset=vframe.offset)
-                    self.mdat.append(vframe.data)
-                    self.chunk_duration += vframe.duration
-                    vsize += vframe.size
-            except:
-                self.chunk_duration /= self.reader.timescale[trakid]
+                        trun_box.add_sample(size=video_frame.size,
+                                            initial_offset=video_frame.offset)
+                    fragment_mdat.append(video_frame.data)
+                    chunk_duration += video_frame.duration
+                    chunk_size += video_frame.size
+            except IndexError:
+                chunk_duration /= self._reader.timescale[track_id]
                 self.last_chunk = True
                 break
-        return vsize
-    def _set_audio_sample(self, trakid, trun_box):
-        asize = 0
+        return chunk_size, chunk_duration
+
+    def _set_audio_sample(self, track_id, trun_box, fragment_mdat, chunk_duration):
+        sample_size = 0
         duration = 0
-        while duration < self.chunk_duration:
+        while duration < chunk_duration:
             try:
-                sample = self.reader.next_sample(trakid)
-                if self.last_chunk == False:
-                    duration += sample.duration / self.reader.timescale[trakid]
-                trun_box.add_sample(size=sample.size, duration=sample.duration, initial_offset=sample.offset)
-                self.mdat.append(sample.data)
-                asize += sample.size
-            except:
+                sample = self._reader.next_sample(track_id)
+                if not self.last_chunk:
+                    duration += sample.duration / self._reader.timescale[track_id]
+                trun_box.add_sample(size=sample.size,
+                                    duration=sample.duration,
+                                    initial_offset=sample.offset)
+                fragment_mdat.append(sample.data)
+                sample_size += sample.size
+            except IndexError:
                 break
-        return asize
-    def _set_text_sample(self, trakid, trun_box):
+        return sample_size
+
+    def _set_text_sample(self, track_id, trun_box, fragment_mdat, chunk_duration):
         size = 0
         duration = 0
-        while duration < self.chunk_duration:
+        while duration < chunk_duration:
             try:
-                sample = self.reader.next_sample(trakid)
-                if self.last_chunk == False:
-                    duration += sample.duration / self.reader.timescale[trakid]
-                trun_box.add_sample(size=sample.size, duration=sample.duration, initial_offset=sample.offset)
-                self.mdat.append(sample.data)
+                sample = self._reader.next_sample(track_id)
+                if not self.last_chunk:
+                    duration += sample.duration / self._reader.timescale[track_id]
+                trun_box.add_sample(size=sample.size,
+                                    duration=sample.duration,
+                                    initial_offset=sample.offset)
+                fragment_mdat.append(sample.data)
                 size += sample.size
-            except:
-                trun_box.add_sample(size=2,duration=int(self.chunk_duration*self.reader.timescale[trakid]))
-                self.mdat.append(int(0).to_bytes(2, 'big'))
-                size=2
+            except IndexError:
+                trun_box.add_sample(
+                    size=2,
+                    duration=int(chunk_duration * self._reader.timescale[track_id])
+                )
+                fragment_mdat.append(int(0).to_bytes(2, 'big'))
+                size = 2
                 break
         return size
 
     def _keyframe(self, frame):
-        if self.reader.video_stream_type == stsd.VideoCodecType.AVC:
+        if self._reader.video_stream_type == stsd.VideoCodecType.AVC:
             return frame[4] & 0x1f != 1
-        elif self.reader.video_stream_type == stsd.VideoCodecType.HEVC:
+        if self._reader.video_stream_type == stsd.VideoCodecType.HEVC:
             return hvcc.NetworkUnitHeader(frame[4:6]).keyframe()
         raise TypeError

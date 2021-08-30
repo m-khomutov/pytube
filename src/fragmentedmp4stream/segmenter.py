@@ -25,10 +25,13 @@ class Segmenter:
         if verbal:
             logging.info(self.reader)
         self._prepare_playlist()
+
     def media_playlist(self):
         return self._media_playlist
+
     def init(self):
-        return self.writer.init()
+        return self.writer.initializer
+
     def segment(self, index):
         if index >= len(self.media_segments):
             raise ValueError
@@ -72,7 +75,7 @@ class Segmenter:
             self._cache()
     def _cache(self):
         with open(self._filename+'.cache', 'wb') as f:
-            f.write(self.writer.init())
+            f.write(self.writer.initializer)
             for segment in self.media_segments:
                 for m in segment.moof:
                     f.write(m.encode())

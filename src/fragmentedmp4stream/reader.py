@@ -4,83 +4,77 @@ from .atom import stco, stsc, stsz, tkhd, mdhd, co64, stts, ctts, hdlr, stsd, tr
 from .atom import ftyp, vmhd, mvhd, smhd, dref  # noqa # pylint: disable=unused-import
 
 
-class FragmentationFinished(Exception):
-    """Exception to show end of file fragmentation"""
-
-
 class SamplesStscInfo:
     """Sample to chunk information"""
     def __init__(self, entries):
-        self.entries = []
-        self.index = [0, 0]
+        self._entries = []
+        self._index = [0, 0]
         for i, entry in enumerate(entries):
             if i > 0:
                 run_size = entry.first_chunk - entries[i-1].first_chunk
-                self.entries.extend([entries[i-1].samples_per_chunk] * run_size)
+                self._entries.extend([entries[i-1].samples_per_chunk] * run_size)
 
     def is_iterate_offset(self):
         """Verifies if two step offset should be iterated"""
-        return self.index[1] >= len(self.entries) or self.index[0] == 0
+        return self._index[1] >= len(self._entries) or self._index[0] == 0
 
     def next(self):
         """Iterates two step offset"""
-        if self.index[1] < len(self.entries):
-            self.index[0] += 1
-            if self.index[0] >= self.entries[self.index[1]]:
-                self.index[0] = 0
-                self.index[1] += 1
+        if self._index[1] < len(self._entries):
+            self._index[0] += 1
+            if self._index[0] >= self._entries[self._index[1]]:
+                self._index[0] = 0
+                self._index[1] += 1
 
 
 class SamplesStcoInfo:
     """Chunk offset information"""
     def __init__(self, entries):
-        self.entries = entries
-        self.index = 0
+        self._entries = entries
+        self._index = 0
 
     def offset(self):
         """Returns Chunk offset"""
-        return self.entries[self.index]
+        return self._entries[self._index]
 
     def next(self):
         """Iterates chunk"""
-        if self.index < len(self.entries):
-            self.index += 1
+        if self._index < len(self._entries):
+            self._index += 1
 
 
 class SamplesStszInfo:
     """Sample sizes"""
     def __init__(self, entries):
-        self.entries = entries
-        self.index = 0
+        self._entries = entries
+        self._index = 0
 
     def current_size(self):
         """Returns size of the current sample"""
-        return self.entries[self.index]
+        return self._entries[self._index]
 
     def next(self):
         """Iterates sample"""
-        if self.index < len(self.entries):
-            self.index += 1
-        else:
-            raise FragmentationFinished('')
+        if self._index < len(self._entries):
+            self._index += 1
 
 
 class SamplesSttsInfo:
     """Decoding Time to sample"""
     def __init__(self, entries):
-        self.entries = entries
-        self.index = [0, 0]
+        self._entries = entries
+        self._index = [0, 0]
 
     def current_decoding_time(self):
         """Returns decoding time of the current sample"""
-        return self.entries[self.index[1]].delta
+        return self._entries[self._index[1]].delta
 
     def next(self):
         """Iterates sample"""
-        self.index[0] += 1
-        if self.index[0] >= self.entries[self.index[1]].count:
-            self.index[0] = 0
-            self.index[1] += 1
+        self._index[0] += 1
+        if self._index[0] >= self._entries[self._index[1]].count:
+            self._index[0] = 0
+            self._index[1] += 1
 
 
 class SamplesCttsInfo:
