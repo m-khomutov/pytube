@@ -31,18 +31,18 @@ class Flags(IntFlag):
 class OptionalFields:
     """Sample optional fields"""
     def __init__(self, **kwargs):
-        self._fields = (kwargs.get('duration', None),
-                        kwargs.get('size', None),
-                        kwargs.get('flags', None),
-                        kwargs.get('composition_time_offset', None))
+        self.fields = (kwargs.get('duration', None),
+                       kwargs.get('size', None),
+                       kwargs.get('flags', None),
+                       kwargs.get('composition_time_offset', None))
         self.initial_offset = kwargs.get('initial_offset', 0)
 
     def __repr__(self):
-        return '{' + ','.join(map(lambda x: '' if x is None else str(x), self._fields)) + '}'
+        return '{' + ','.join(map(lambda x: '' if x is None else str(x), self.fields)) + '}'
 
     def to_bytes(self):
         """Returns sample optional fields as bytestream, ready to be sent to socket"""
-        none_filter = filter(lambda x: x is not None, self._fields)
+        none_filter = filter(lambda x: x is not None, self.fields)
         return reduce(lambda a, b: a + b, [k.to_bytes(4, byteorder='big') for k in none_filter])
 
 
@@ -52,7 +52,7 @@ class Box(FullBox):
         super().__init__(*args, **kwargs)
         file = kwargs.get("file", None)
         self.tr_flags = Flags(self.flags)
-        self._samples = []
+        self.samples = []
         if file is not None:
             self._readfile(file)
         else:
@@ -81,11 +81,11 @@ class Box(FullBox):
         if Flags.SAMPLE_COMPOSITION_TIME_OFFSETS in self.tr_flags:
             sample_time_offsets = kwargs.get('time_offsets', 0)
             self.size += 4
-        self._samples.append(OptionalFields(duration=sample_duration,
-                                            size=sample_size,
-                                            flags=sample_flags,
-                                            composition_time_offset=sample_time_offsets,
-                                            initial_offset=kwargs.get('initial_offset', 0)))
+        self.samples.append(OptionalFields(duration=sample_duration,
+                                           size=sample_size,
+                                           flags=sample_flags,
+                                           composition_time_offset=sample_time_offsets,
+                                           initial_offset=kwargs.get('initial_offset', 0)))
 
     def __repr__(self):
         result = super().__repr__()
@@ -94,15 +94,15 @@ class Box(FullBox):
         if Flags.FIRST_SAMPLE_FLAGS in self.tr_flags:
             result += ' first_sample_flags:{:x}'.format(self.first_sample_flags)
         return result + ' samples{duration,size,flags,comp_time offset}:' + \
-                        ''.join([str(k) for k in self._samples])
+                        ''.join([str(k) for k in self.samples])
 
     def to_bytes(self):
-        ret = super().to_bytes() + len(self._samples).to_bytes(4, byteorder='big')
+        ret = super().to_bytes() + len(self.samples).to_bytes(4, byteorder='big')
         if Flags.DATA_OFFSET in self.tr_flags:
             ret += self.data_offset.to_bytes(4, byteorder='big')
         if Flags.FIRST_SAMPLE_FLAGS in self.tr_flags:
             ret += self.first_sample_flags.to_bytes(4, byteorder='big')
-        return ret + reduce(lambda a, b: a + b, map(lambda x: x.to_bytes(), self._samples))
+        return ret + reduce(lambda a, b: a + b, map(lambda x: x.to_bytes(), self.samples))
 
     def _readfile(self, file):
         count = int.from_bytes(self._read_some(file, 4), "big")
@@ -110,7 +110,7 @@ class Box(FullBox):
             self.data_offset = int.from_bytes(self._read_some(file, 4), "big")
         if Flags.FIRST_SAMPLE_FLAGS in self.tr_flags:
             self.first_sample_flags = int.from_bytes(self._read_some(file, 4), "big")
-        self._samples = [map(lambda: self._read_sample(file), range(count))]
+        self.samples = [map(lambda: self._read_sample(file), range(count))]
 
     def _read_sample(self, file):
         """read sample fields in accordance with option flags"""

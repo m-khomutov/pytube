@@ -1,3 +1,4 @@
+"""Network service to receive requests"""
 import sys
 import os
 import getopt
@@ -8,19 +9,22 @@ from socketserver import ThreadingMixIn
 import time
 from .reader import Reader
 from .writer import Writer
-from .segmenter import Segmenter
+from .segmenter import SegmentMaker
 
 
 def make_handler(params):
-    class Handler(BaseHTTPRequestHandler, object):
+    """Prepares handler to deal with network activity"""
+    class Handler(BaseHTTPRequestHandler):
+        """Manages HTTP protocol network activity"""
         def __init__(self, *args, **kwargs):
             self._root = params.get("root", ".")
             self._segment_floor = float(params.get("segment", "6."))
             self._verbal = params.get("verb", False)
             self._cache = params.get("cache", False)
-            self.segmenters = params.get("segmenters", None)
+            self.segment_makers = params.get("segment_makers", None)
             self._filename = ''
-            super(Handler, self).__init__(*args, **kwargs)
+            self.path = ''
+            super().__init__(*args, **kwargs)
 
         def _stream_file_list(self):
             self.send_response(200)
@@ -35,10 +39,10 @@ def make_handler(params):
                 self.send_response(200)
                 self.send_header('Content-type', 'video/mp4')
                 self.end_headers()
-                f = open(filename)
-                for line in f:
+                file = open(filename)
+                for line in file:
                     self.wfile.write(line.encode())
-                f.close()
+                file.close()
                 return True
             return False
 
@@ -64,37 +68,34 @@ def make_handler(params):
             self.send_response(200)
             self.send_header('Content-type', 'application/vnd.apple.mpegurl')
             self.end_headers()
-            segmenter = self.segmenters.get(self.path)
-            if segmenter is None:
-                segmenter = Segmenter(self._filename,
-                                      self.path,
-                                      self.server.server_address,
-                                      self._segment_floor,
-                                      self._cache,
-                                      self._verbal)
-                self.segmenters[self.path] = segmenter
-            self.wfile.write(segmenter.media_playlist().encode())
+            segment_maker = self.segment_makers.get(self.path)
+            if segment_maker is None:
+                segment_maker = SegmentMaker(self._filename,
+                                             self.path,
+                                             self.server.server_address,
+                                             segment_duration=self._segment_floor,
+                                             cache=self._cache,
+                                             verbal=self._verbal)
+                self.segment_makers[self.path] = segment_maker
+            self.wfile.write(segment_maker.media_playlist().encode())
 
         def _stream_segment(self):
             idx = self.path.rfind('_')
             if idx < 0:
                 self._reply_error(404)
                 return
-            segmenter = self.segmenters.get(self.path[:idx])
-            if segmenter is None:
+            segment_maker = self.segment_makers.get(self.path[:idx])
+            if segment_maker is None:
                 self._reply_error(501)
                 return
-            try:
-                self.send_response(200)
-                self.send_header('Content-type', 'video/mp4')
-                self.end_headers()
-                if self.path[idx+1:-4] == 'init':
-                    self.wfile.write(segmenter.init())
-                else:
-                    segment_number = int(self.path[idx+3:-4])
-                    self.wfile.write(segmenter.segment(segment_number))
-            except:
-                self._reply_error(501)
+            self.send_response(200)
+            self.send_header('Content-type', 'video/mp4')
+            self.end_headers()
+            if self.path[idx+1:-4] == 'init':
+                self.wfile.write(segment_maker.init())
+            else:
+                segment_number = int(self.path[idx+3:-4])
+                self.wfile.write(segment_maker.segment(segment_number))
 
         def _reply_error(self, code):
             self.send_error(code)
@@ -102,7 +103,7 @@ def make_handler(params):
 
         def do_GET(self):
             logging.info("Path: %s\nHeaders:\n%s\n", str(self.path), str(self.headers))
-            if self.segmenters is None:
+            if self.segment_makers is None:
                 self._reply_error(501)
             elif self.path == '/':
                 self._stream_file_list()
@@ -134,12 +135,12 @@ class ThreadedHTTPServer(ThreadingMixIn, HTTPServer):
 
 class Service:
     def __init__(self):
-        self.segmenters = {}
+        self.segment_makers = {}
 
     def run(self, port, params, server_class=ThreadedHTTPServer):
         logging.basicConfig(level=logging.INFO)
         server_address = ('', port)
-        params['segmenters'] = self.segmenters
+        params['segment_makers'] = self.segment_makers
         handler_class = make_handler(params)
         httpd = server_class(server_address, handler_class)
         logging.info('Starting httpd...')
@@ -156,8 +157,8 @@ def start(argv):
         opts, args = getopt.getopt(argv,
                                    "hp:r:s:cv",
                                    ["help", "port=", "root=", "segment=", "cache", "verb"])
-    except getopt.GetoptError as e:
-        print(e)
+    except getopt.GetoptError as error:
+        print(error)
         sys.exit()
     port = 4555
     params = {}
