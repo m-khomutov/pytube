@@ -12,22 +12,19 @@ def atom_type():
 
 class Box(FullBox):
     """64-bit chunk offset box"""
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        file = kwargs.get("file", None)
-        self.entries = []
-        if file is not None:
-            self._readfile(file)
-        else:
-            self.type = 'co64'
-            self.size = 16
 
     def __repr__(self):
         return super().__repr__() + ' offsets:[' + ' '.join([str(k) for k in self.entries]) + ']'
 
-    def _readfile(self, file):
+    def _init_from_file(self, file):
+        super()._init_from_file(file)
         count = int.from_bytes(self._read_some(file, 4), "big")
         self.entries = [map(lambda: int.from_bytes(self._read_some(file, 8), 'big'), range(count))]
+
+    def _init_from_args(self, **kwargs):
+        super()._init_from_args(**kwargs)
+        self.type = 'co64'
+        self.size = 16
 
     def to_bytes(self):
         ret = super().to_bytes() + len(self.entries).to_bytes(4, byteorder='big')

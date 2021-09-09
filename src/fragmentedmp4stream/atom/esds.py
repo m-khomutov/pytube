@@ -6,25 +6,41 @@ class Descriptor:
     """A descriptor for MPEG-4 video, as defined in the MPEG-4 specification ISO/IEC 14496-1
        and subject to the restrictions for storage in MPEG-4 files specified in ISO/IEC 14496-14"""
     def __init__(self, tag, file):
-        self.tag = tag
-        self.indicator = file.read(1)
+        self._tag = tag
+        self._indicator = file.read(1)
         if int.from_bytes(self.indicator, "big") == 0x80:
-            self.indicator += file.read(2)
-            self.length = file.read(1)[0]
+            self._indicator += file.read(2)
+            self._length = file.read(1)[0]
         else:
-            self.length = self.indicator[0]
-            self.indicator = bytearray()
+            self._length = self.indicator[0]
+            self._indicator = bytearray()
+
+    def __str__(self):
+        return 'tag {:x} len={}'.format(self._tag, self._length)
 
     def __repr__(self):
-        return 'tag {:x} len={}'.format(self.tag, self.length)
+        return 'Descriptor({:x})'.format(self._tag)
+
+    def __len__(self):
+        return self._length
 
     def to_bytes(self):
         """Returns sample optional fields as bytestream, ready to be sent to socket"""
-        ret = self.tag.to_bytes(1, byteorder='big')
-        if len(self.indicator) > 0:
-            ret += self.indicator
-        ret += self.length.to_bytes(1, byteorder='big')
+        ret = self._tag.to_bytes(1, byteorder='big')
+        if self._indicator:
+            ret += self._indicator
+        ret += self._length.to_bytes(1, byteorder='big')
         return ret
+
+    @property
+    def tag(self):
+        """Returns descriptor tag"""
+        return self._tag
+
+    @property
+    def indicator(self):
+        """Returns descriptor indicator"""
+        return self._indicator
 
 
 class ESDescriptor(Descriptor):
@@ -33,6 +49,9 @@ class ESDescriptor(Descriptor):
         super().__init__(3, file)
         self.stream_id = int.from_bytes(file.read(2), 'big')
         self.stream_priority = file.read(1)[0]
+
+    def __str__(self):
+        return super().__str__() + ' ' + self.__repr__()
 
     def __repr__(self):
         return f'id:{self.stream_id} priority:{self.stream_priority}'
@@ -123,7 +142,7 @@ class DecoderSpecificDescriptor(Descriptor):
     """An elementary stream decoder descriptor for MPEG-4 video"""
     def __init__(self, file):
         super().__init__(5, file)
-        self.header_start_codes = file.read(self.length)
+        self.header_start_codes = file.read(len(self))
 
     def __repr__(self):
         return " start_codes:[ " + \
@@ -156,7 +175,8 @@ class Box(FullBox):
             self._readfile(file)
 
     def __repr__(self):
-        return super().__repr__() + ''.join(str(d) for d in self.descriptors)
+        return super().__repr__() + \
+               ' descriptors: [' + ''.join('{'+str(d)+'}' for d in self.descriptors) + ']'
 
     def _readfile(self, file):
         left = self.size - (file.tell() - self.position)

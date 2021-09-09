@@ -10,11 +10,6 @@ def atom_type():
 
 class Box(FullBox):
     """Track header box"""
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        file = kwargs.get("file", None)
-        if file is not None:
-            self._readfile(file)
 
     def __repr__(self):
         return super().__repr__() + \
@@ -31,7 +26,8 @@ class Box(FullBox):
                                            self.width,
                                            self.height)
 
-    def _readfile(self, file):
+    def _init_from_file(self, file):
+        super()._init_from_file(file)
         if self.version == 1:
             self.timing = (
                 int.from_bytes(self._read_some(file, 8), "big"),  # creation

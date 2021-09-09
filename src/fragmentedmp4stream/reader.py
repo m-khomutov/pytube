@@ -85,13 +85,13 @@ class SamplesCttsInfo:
 
     def current_composition_time(self):
         """Returns composition time of the current sample"""
-        if len(self.entries) > 0:
+        if self.entries:
             return self.entries[self.index[1]].offset
         return 0
 
     def next(self):
         """Iterates sample"""
-        if len(self.entries) > 0:
+        if self.entries:
             self.index[0] += 1
             if self.index[0] >= self.entries[self.index[1]].count:
                 self.index[0] = 0

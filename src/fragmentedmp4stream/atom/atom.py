@@ -21,6 +21,10 @@ class BoxIterator:
         """Returns current position in box iteration"""
         return self._index
 
+    def reset(self):
+        """Resets iteration"""
+        self._index = 0
+
 
 class Box:
     """An object-oriented building block defined by a unique type identifier and length
@@ -41,9 +45,11 @@ class Box:
         file = kwargs.get("file", None)
         if file is not None:
             self._fromfile(file, kwargs.get("depth", None))
+            self._init_from_file(file)
         else:
             self.type = kwargs.get("type", None)
             self.size = 8
+            self._init_from_args(**kwargs)
 
     def __repr__(self):
         ret = " " * (self._depth * 2) + \
@@ -60,6 +66,18 @@ class Box:
     def __iter__(self):
         return BoxIterator(self)
 
+    def _init_from_file(self, file):
+        """Virtual function for derived classes to initialize from file"""
+        pass
+
+    def _init_from_args(self, **kwargs):
+        """Virtual function for derived classes to initialize from args"""
+        pass
+
+    def _read_entry(self, file):
+        """Virtual function to read an entry from file"""
+        pass
+
     def add_inner_box(self, box, parent_type=''):
         """Adds atom to inner boxes"""
         if parent_type == '':
@@ -67,7 +85,7 @@ class Box:
             self._inner_boxes.append(box)
         else:
             parent = self.find_inner_boxes(parent_type)
-            if len(parent) > 0:
+            if parent:
                 parent[0].add_inner_box(box)
 
     def find_inner_boxes(self, searched_type):
@@ -86,6 +104,11 @@ class Box:
         ret = (ret or self.type == 'mdia' or self.type == 'minf' or self.type == 'dinf')
         ret = (ret or self.type == 'stbl' or self.type == 'mvex' or self.type == 'moof')
         return ret or self.type == 'traf'
+
+    def _read_entries(self, file):
+        """Reads a set of entries"""
+        count = int.from_bytes(file.read(4), "big")
+        return list(map(lambda x: self._read_entry(file), range(count)))
 
     @property
     def indent(self):
@@ -134,21 +157,20 @@ class Box:
 
 class FullBox(Box):
     """A box with a version number and flags field"""
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        file = kwargs.get("file", None)
-        if file is not None:
-            self.version = self._read_some(file, 1)[0]
-            self.flags = int.from_bytes(self._read_some(file, 3), "big")
-        else:
-            self.version = kwargs.get("version", 0)
-            self.flags = kwargs.get("flags", 0)
-            self.size = 12
 
     def __repr__(self):
         ret = super().__repr__() + f" version:{self.version} flags:{self.flags:x}"
         ret += '\n'.join(str(k) for k in self._inner_boxes)
         return ret
+
+    def _init_from_file(self, file):
+        self.version = self._read_some(file, 1)[0]
+        self.flags = int.from_bytes(self._read_some(file, 3), "big")
+
+    def _init_from_args(self, **kwargs):
+        self.version = kwargs.get("version", 0)
+        self.flags = kwargs.get("flags", 0)
+        self.size = 12
 
     def to_bytes(self):
         ret = super().to_bytes()

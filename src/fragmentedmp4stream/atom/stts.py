@@ -13,8 +13,15 @@ class Entry:
         self.count = count
         self.delta = delta
 
+    def __str__(self):
+        return f'{{{self.count}:{self.delta}}}'
+
     def __repr__(self):
-        return '{'+'{}:{}'.format(self.count, self.delta)+'}'
+        return f'Entry({self.count}, {self.delta})'
+
+    def empty(self):
+        """Verifies of consecutive samples exist"""
+        return self.count == 0
 
     def to_bytes(self):
         """Returns sample the box entry as bytestream, ready to be sent to socket"""

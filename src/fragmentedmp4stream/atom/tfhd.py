@@ -23,7 +23,7 @@ class OptionalFields:
         self._flags = flags
         file = kwargs.get("file", None)
         if file is not None:
-            self._read_from_file(file)
+            self.read_from_file(file)
         else:
             if Flags.BASE_DATA_OFFSET_PRESENT in flags:
                 self._size += 8
@@ -59,7 +59,7 @@ class OptionalFields:
     def __len__(self):
         return self._size
 
-    def _read_from_file(self, file):
+    def read_from_file(self, file):
         """Get optional field from mp4 file"""
         if Flags.BASE_DATA_OFFSET_PRESENT in self._flags:
             self._base_offset = int.from_bytes(file.read(8), "big")
@@ -101,7 +101,6 @@ class Box(FullBox):
         self.size = 16
         if file is not None:
             self._readfile(file)
-            self._optional_fields = OptionalFields(Flags(self.flags), file=file)
         else:
             self._optional_fields =\
                 OptionalFields(Flags(self.flags),
@@ -124,3 +123,4 @@ class Box(FullBox):
 
     def _readfile(self, file):
         self.track_id = int.from_bytes(self._read_some(file, 4), "big")
+        self._optional_fields = OptionalFields(Flags(self.flags), file=file)

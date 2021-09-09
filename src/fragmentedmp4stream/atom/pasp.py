@@ -4,21 +4,22 @@ from .atom import Box as Atom
 
 class Box(Atom):
     """Pixel aspect ratio box"""
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        file = kwargs.get("file", None)
-        if file is not None:
-            self.h_spacing = int.from_bytes(self._read_some(file, 4), "big")
-            self.v_spacing = int.from_bytes(self._read_some(file, 4), "big")
-        else:
-            self.type = 'pasp'
-            self.size = 16
-            self.h_spacing = kwargs.get("h_spacing", 0)
-            self.v_spacing = kwargs.get("v_spacing", 0)
 
     def __repr__(self):
         return super().__repr__() +\
                f' h_spacing:{self.h_spacing} v_spacing:{self.v_spacing}'
+
+    def _init_from_file(self, file):
+        super()._init_from_file(file)
+        self.h_spacing = int.from_bytes(self._read_some(file, 4), "big")
+        self.v_spacing = int.from_bytes(self._read_some(file, 4), "big")
+
+    def _init_from_args(self, **kwargs):
+        super()._init_from_args(**kwargs)
+        self.type = 'pasp'
+        self.size = 16
+        self.h_spacing = kwargs.get("h_spacing", 0)
+        self.v_spacing = kwargs.get("v_spacing", 0)
 
     def to_bytes(self):
         return super().to_bytes() + self.h_spacing.to_bytes(4, byteorder='big') +\

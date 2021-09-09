@@ -8,7 +8,7 @@ class Frame:
     """Data frame to store in the run box"""
     duration, offset, size = 0, 0, 0
     composition_time = None
-    data = b''
+    _data = b''
 
     def __str__(self):
         return f'duration:{self.duration} offset:{self.offset}' \
@@ -16,6 +16,16 @@ class Frame:
 
     def __repr__(self):
         return self.__str__()
+
+    def get_data(self):
+        """Returns frame as bytestream"""
+        return self._data
+
+    def set_data(self, value):
+        """Sets frame data bytestream"""
+        self._data = value
+
+    data = property(get_data, set_data)
 
 
 class Flags(IntFlag):
@@ -31,18 +41,58 @@ class Flags(IntFlag):
 class OptionalFields:
     """Sample optional fields"""
     def __init__(self, **kwargs):
-        self.fields = (kwargs.get('duration', None),
-                       kwargs.get('size', None),
-                       kwargs.get('flags', None),
-                       kwargs.get('composition_time_offset', None))
+        self._fields = [kwargs.get('duration', None),
+                        kwargs.get('size', None),
+                        kwargs.get('flags', None),
+                        kwargs.get('composition_time_offset', None)]
         self.initial_offset = kwargs.get('initial_offset', 0)
 
     def __repr__(self):
-        return '{' + ','.join(map(lambda x: '' if x is None else str(x), self.fields)) + '}'
+        return '{' + ','.join(map(lambda x: '' if x is None else str(x), self._fields)) + '}'
+
+    @property
+    def duration(self):
+        """Returns sample duration"""
+        return self._fields[0]
+
+    @duration.setter
+    def duration(self, value):
+        """Sets sample duration"""
+        self._fields[0] = value
+
+    @property
+    def size(self):
+        """Returns sample size"""
+        return self._fields[1]
+
+    @size.setter
+    def size(self, value):
+        """Sets sample size"""
+        self._fields[1] = value
+
+    @property
+    def flags(self):
+        """Returns sample duration"""
+        return self._fields[2]
+
+    @flags.setter
+    def flags(self, value):
+        """Sets sample duration"""
+        self._fields[2] = value
+
+    @property
+    def composition_time_offset(self):
+        """Returns sample composition time offset"""
+        return self._fields[3]
+
+    @composition_time_offset.setter
+    def composition_time_offset(self, value):
+        """Sets sample composition time offset"""
+        self._fields[3] = value
 
     def to_bytes(self):
         """Returns sample optional fields as bytestream, ready to be sent to socket"""
-        none_filter = filter(lambda x: x is not None, self.fields)
+        none_filter = filter(lambda x: x is not None, self._fields)
         return reduce(lambda a, b: a + b, [k.to_bytes(4, byteorder='big') for k in none_filter])
 
 

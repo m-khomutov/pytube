@@ -12,11 +12,6 @@ def atom_type():
 
 class Box(FullBox):
     """Media header box, overall information about the media"""
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        file = kwargs.get("file", None)
-        if file is not None:
-            self._readfile(file)
 
     def __repr__(self):
         return super().__repr__() + \
@@ -26,7 +21,8 @@ class Box(FullBox):
               f' duration:{self.duration}' \
               f' language:{self.language}'
 
-    def _readfile(self, file):
+    def _init_from_file(self, file):
+        super()._init_from_file(file)
         if self.version == 1:
             self.creation_time = int.from_bytes(self._read_some(file, 8), "big")
             self.modification_time = int.from_bytes(self._read_some(file, 8), "big")

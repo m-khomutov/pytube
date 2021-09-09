@@ -12,11 +12,6 @@ def atom_type():
 
 class Box(FullBox):
     """Movie header, overall declarations"""
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        file = kwargs.get("file", None)
-        if file is not None:
-            self._readfile(file)
 
     def __repr__(self):
         ret = super().__repr__() + \
@@ -29,7 +24,8 @@ class Box(FullBox):
         ret += f" nextTrackID:{self.next_track_id}"
         return ret
 
-    def _readfile(self, file):
+    def _init_from_file(self, file):
+        super()._init_from_file(file)
         if self.version == 1:
             self.time = (int.from_bytes(self._read_some(file, 8), "big"),
                          int.from_bytes(self._read_some(file, 8), "big"))

@@ -2,6 +2,7 @@
    the coding type used, and any initialization information
    needed for that coding
 """
+from functools import reduce
 from enum import IntEnum
 from . import atom, esds, avcc, hvcc, pasp, fiel
 
@@ -157,41 +158,91 @@ class StyleRecord:
        sample description or to define more than one style for a sample
     """
     def __init__(self, file):
-        self.start_char = int.from_bytes(file.read(2), 'big')
-        self.end_char = int.from_bytes(file.read(2), 'big')
-        self.font_id = int.from_bytes(file.read(2), 'big')
-        self.face_style_flags = int.from_bytes(file.read(1), 'big')
-        self.font_size = int.from_bytes(file.read(1), 'big')
+        self._fields = [
+            int.from_bytes(file.read(2), 'big'),  # start char
+            int.from_bytes(file.read(2), 'big'),  # end char
+            int.from_bytes(file.read(2), 'big'),  # font id
+            int.from_bytes(file.read(1), 'big'),  # face style flags
+            int.from_bytes(file.read(1), 'big'),  # font size
+        ]
         self.text_color = list(map(lambda x: int.from_bytes(file.read(1), 'big'), range(4)))
 
     def __repr__(self):
-        ret = f'start={self.start_char} end={self.end_char} font-id={self.font_id} '
-        if self.face_style_flags == 0:
+        ret = f'start={self._fields[0]} end={self._fields[1]} font-id={self._fields[2]} '
+        if self._fields[3] == 0:
             ret += 'plain'
         else:
             style = ''
-            if self.face_style_flags & 1 != 0:
+            if self._fields[3] & 1 != 0:
                 style += 'bold'
-            if self.face_style_flags & 2 != 0:
-                if len(style) > 0:
+            if self._fields[3] & 2 != 0:
+                if style:
                     style += '|'
                 style += 'italic'
-            if self.face_style_flags & 4 != 0:
-                if len(style) > 0:
+            if self._fields[3] & 4 != 0:
+                if style > 0:
                     style += '|'
                 style += 'underline'
             ret += style
-        ret += ' font size=' + str(self.font_size) + \
+        ret += ' font size=' + str(self._fields[4]) + \
                ' color=[' + ' '.join(str(k) for k in self.text_color) + ']'
         return ret
 
+    @property
+    def start_char(self):
+        """Offset of the first character that is to use the style specified in this record"""
+        return self._fields[0]
+
+    @start_char.setter
+    def start_char(self, value):
+        """Sets offset of the first character that is to use the style specified in this record"""
+        self._fields[0] = value
+
+    @property
+    def end_char(self):
+        """Returns offset of the character that follows the last character to use this style"""
+        return self._fields[1]
+
+    @end_char.setter
+    def end_char(self, value):
+        """Sets offset of the character that follows the last character to use this style"""
+        self._fields[1] = value
+
+    @property
+    def font_id(self):
+        """Returns font identifier"""
+        return self._fields[2]
+
+    @font_id.setter
+    def font_id(self, value):
+        """Sets font identifier"""
+        self._fields[2] = value
+
+    @property
+    def face_style_flags(self):
+        """Returns indications of the font’s style"""
+        return self._fields[3]
+
+    @face_style_flags.setter
+    def face_style_flags(self, value):
+        """Sets indications of the font’s style"""
+        self._fields[3] = value
+
+    @property
+    def font_size(self):
+        """Returns font's size specification"""
+        return self._fields[4]
+
+    @font_size.setter
+    def font_size(self, value):
+        """Sets font's size specification"""
+        self._fields[4] = value
+
     def to_bytes(self):
         """Returns record as bytestream, ready to be sent to socket"""
-        ret = self.start_char.to_bytes(2, byteorder='big')
-        ret += self.end_char.to_bytes(2, byteorder='big')
-        ret += self.font_id.to_bytes(2, byteorder='big')
-        ret += self.face_style_flags.to_bytes(1, byteorder='big')
-        ret += self.font_size.to_bytes(1, byteorder='big')
+        ret = b''
+        for i, field in enumerate(self._fields):
+            ret += field.to_bytes(2 if i < 3 else 1, byteorder='big')
         for color in self.text_color:
             ret += color.to_bytes(1, byteorder='big')
         return ret
@@ -200,17 +251,27 @@ class StyleRecord:
 class FontRecord:
     """Font record used in a font table"""
     def __init__(self, file):
-        self.identifier = int.from_bytes(file.read(2), 'big')
+        self._identifier = int.from_bytes(file.read(2), 'big')
         name_length = int.from_bytes(file.read(1), 'big')
-        self.name = file.read(name_length).decode("utf-8")
+        self._name = file.read(name_length).decode("utf-8")
 
     def __repr__(self):
-        return 'id=' + str(self.identifier) + " '" + self.name + "'"
+        return 'id=' + str(self._identifier) + " '" + self._name + "'"
+
+    @property
+    def identifier(self):
+        """Returns font identifier"""
+        return self._identifier
+
+    @property
+    def name(self):
+        """Returns font name"""
+        return self._name
 
     def to_bytes(self):
         """Returns record as bytestream, ready to be sent to socket"""
-        ret = self.identifier.to_bytes(2, byteorder='big')
-        ret += len(self.name).to_bytes(1, byteorder='big') + self.name.encode()
+        ret = self._identifier.to_bytes(2, byteorder='big')
+        ret += len(self._name).to_bytes(1, byteorder='big') + self._name.encode()
         return ret
 
 
@@ -241,21 +302,38 @@ class FontTableBox(atom.Box):
 class BoxRecord:
     """Defines text geometry on the window"""
     def __init__(self, file):
-        self.top = int.from_bytes(file.read(2), 'big')
-        self.left = int.from_bytes(file.read(2), 'big')
-        self.bottom = int.from_bytes(file.read(2), 'big')
-        self.right = int.from_bytes(file.read(2), 'big')
+        self._fields = (int.from_bytes(file.read(2), 'big'),
+                        int.from_bytes(file.read(2), 'big'),
+                        int.from_bytes(file.read(2), 'big'),
+                        int.from_bytes(file.read(2), 'big'))
 
     def __repr__(self):
-        return f't={self.top} l={self.left} b={self.bottom} r={self.right}'
+        return ' '.join(str(k) for k in self._fields)
+
+    @property
+    def top(self):
+        """Returns top corner fo the window"""
+        return self._fields[0]
+
+    @property
+    def left(self):
+        """Returns left corner fo the window"""
+        return self._fields[1]
+
+    @property
+    def bottom(self):
+        """Returns bottom corner fo the window"""
+        return self._fields[2]
+
+    @property
+    def right(self):
+        """Returns right corner fo the window"""
+        return self._fields[3]
 
     def to_bytes(self):
         """Returns record as bytestream, ready to be sent to socket"""
-        ret = self.top.to_bytes(2, byteorder='big')
-        ret += self.left.to_bytes(2, byteorder='big')
-        ret += self.bottom.to_bytes(2, byteorder='big')
-        ret += self.right.to_bytes(2, byteorder='big')
-        return ret
+        return reduce(lambda a, b: a + b,
+                      map(lambda x: x.to_bytes(2, byteorder='big'), self._fields))
 
 
 class TextSampleEntry(SampleEntry):
@@ -301,6 +379,7 @@ class Box(atom.FullBox):
         super().__init__(*args, **kwargs)
         file = kwargs.get("file", None)
         self.entries = []
+        self._handler = None
         self.video_stream_type = VideoCodecType.UNKNOWN
         if file is not None:
             self._readfile(file, kwargs.get('hdlr', None))
@@ -313,22 +392,21 @@ class Box(atom.FullBox):
         self.size = 16 + sum([k.size for k in self.entries])
 
     def _readfile(self, file, handler):
-        count = int.from_bytes(self._read_some(file, 4), "big")
-        if handler is not None:
-            self.entries = list(map(lambda x: self._read_entry(file, handler), range(count)))
+        self._handler = handler
+        self.entries = self._read_entries(file)
 
-    def _read_entry(self, file, handler):
+    def _read_entry(self, file):
         """Reads entry of specific type"""
-        if handler == 'vide':
+        if self._handler == 'vide':
             entry = VisualSampleEntry(file=file, depth=self._depth+1)
             if entry.inner_boxes.get('avcC') is not None:
                 self.video_stream_type = VideoCodecType.AVC
             elif entry.inner_boxes.get('hvcC') is not None:
                 self.video_stream_type = VideoCodecType.HEVC
             return entry
-        if handler == 'soun':
+        if self._handler == 'soun':
             return AudioSampleEntry(file=file, depth=self._depth+1)
-        if handler == 'text':
+        if self._handler == 'text':
             return TextSampleEntry(file=file, depth=self._depth+1)
         return SampleEntry()
 

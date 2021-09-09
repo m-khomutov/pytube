@@ -101,7 +101,8 @@ def make_handler(params):
             self.send_error(code)
             self.end_headers()
 
-        def do_GET(self):
+        def do_GET(self): # noqa # pylint: disable=invalid-name
+            """Manages HTTP GET request"""
             logging.info("Path: %s\nHeaders:\n%s\n", str(self.path), str(self.headers))
             if self.segment_makers is None:
                 self._reply_error(501)
@@ -122,9 +123,12 @@ def make_handler(params):
                         self.path = self.path[:-1]
                 self._filename = os.path.join(self._root, self.path[1:]+'.mp4')
                 if os.path.isfile(self._filename):
-                    self._stream_media_playlist() if hls is True else self._stream_fmp4()
-                else:
-                    self._reply_error(404)
+                    if hls:
+                        self._stream_media_playlist()
+                    else:
+                        self._stream_fmp4()
+                    return
+                self._reply_error(404)
 
     return Handler
 
@@ -134,10 +138,22 @@ class ThreadedHTTPServer(ThreadingMixIn, HTTPServer):
 
 
 class Service:
+    """Program launcher. Analyses terminal options and starts http server"""
+    @staticmethod
+    def print_options():
+        """Informs about program terminal arguments"""
+        print("params:\n\t-p(--port) port to bind(def 4555)\n\t"
+              "-r(--root) files directory(req)\n\t"
+              "-s(--segment) segment duration floor\n\t"
+              "-c(--cache) cache segmentation as .*.cache files\n\t"
+              "-v(--verb) be verbose\n\t"
+              "-h(--help) this help")
+
     def __init__(self):
         self.segment_makers = {}
 
     def run(self, port, params, server_class=ThreadedHTTPServer):
+        """Starts http server"""
         logging.basicConfig(level=logging.INFO)
         server_address = ('', port)
         params['segment_makers'] = self.segment_makers
@@ -153,10 +169,14 @@ class Service:
 
 
 def start(argv):
+    """Program start point"""
     try:
         opts, args = getopt.getopt(argv,
                                    "hp:r:s:cv",
                                    ["help", "port=", "root=", "segment=", "cache", "verb"])
+        if args:
+            Service.print_options()
+            sys.exit()
     except getopt.GetoptError as error:
         print(error)
         sys.exit()
@@ -164,12 +184,7 @@ def start(argv):
     params = {}
     for opt, arg in opts:
         if opt in ('-h', '--help'):
-            print("params:\n\t-p(--port) port to bind(def 4555)\n\t"
-                  "-r(--root) files directory(req)\n\t"
-                  "-s(--segment) segment duration floor\n\t"
-                  "-c(--cache) cache segmentation as .*.cache files\n\t"
-                  "-v(--verb) be verbose\n\t"
-                  "-h(--help) this help")
+            Service.print_options()
             sys.exit()
         elif opt in ('-p', '--port'):
             port = int(arg)

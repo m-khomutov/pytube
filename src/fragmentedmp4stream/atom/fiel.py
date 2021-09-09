@@ -20,14 +20,13 @@ from .atom import Box as Atom
 class Box(Atom):
     """Determines field display order. The first byte specifies the field count,
       the second byte specifies the field ordering"""
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        file = kwargs.get("file", None)
-        if file is not None:
-            self.video_field_order = int.from_bytes(self._read_some(file, 2), 'big')
 
     def __repr__(self):
         return super().__repr__() + " videoFieldOrder:" + str(self.video_field_order)
+
+    def _init_from_file(self, file):
+        super()._init_from_file(file)
+        self.video_field_order = int.from_bytes(self._read_some(file, 2), 'big')
 
     def to_bytes(self):
         """Returns sample optional fields as bytestream, ready to be sent to socket"""

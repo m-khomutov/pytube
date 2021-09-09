@@ -13,18 +13,12 @@ class Box(FullBox):
     _graphics_mode = 0
     _color_channels = []
 
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        file = kwargs.get("file", None)
-        if file:
-            self._readfile(file)
-
     def __repr__(self):
         return super().__repr__() + " graphics mode:" + str(self._graphics_mode) + \
                " color:" + str(self._color_channels)
 
-    def _readfile(self, file):
-        """Reads Box from file"""
+    def _init_from_file(self, file):
+        super()._init_from_file(file)
         self._graphics_mode = int.from_bytes(self._read_some(file, 2), "big")
         self._color_channels = list(map(lambda x: int.from_bytes(self._read_some(file, 2), "big"),
                                         range(3)))

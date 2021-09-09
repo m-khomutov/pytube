@@ -66,7 +66,7 @@ class Writer:
             track_box.add_inner_box(Box(type='stbl'), 'minf')
             track_box.add_inner_box(stts.Box(), 'stbl')
             stsd_box = track.find_inner_boxes('stsd')
-            if len(stsd_box) > 0:
+            if stsd_box:
                 stsd_box[0].normalize()
                 track_box.add_inner_box(stsd_box[0], 'stbl')
             track_box.add_inner_box(stsz.Box(), 'stbl')

@@ -39,26 +39,22 @@ class Entry(FullBox):
     def to_bytes(self):
         """Returns data entry as bytestream, ready to be sent to socket"""
         ret = super().to_bytes()
-        if self.type == 'urn ' and len(self.name) > 0:
+        if self.type == 'urn ' and self.name:
             ret += str.encode(self.name)
-        if len(self.location) > 0:
+        if self.location:
             ret += str.encode(self.location)
         return ret
 
 
 class Box(FullBox):
     """data reference box, declares source(s) of media data in track"""
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        file = kwargs.get("file", None)
-        if file is not None:
-            self._readfile(file)
 
     def __repr__(self):
         return super().__repr__() + " entries:" + \
                ''.join(['\n'+str(k) for k in self._entries])
 
-    def _readfile(self, file):
+    def _init_from_file(self, file):
+        super()._init_from_file(file)
         count = int.from_bytes(self._read_some(file, 4), "big")
         self._entries = list(map(lambda x: Entry(file=file, depth=self._depth+1), range(count)))
 

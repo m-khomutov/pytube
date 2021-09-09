@@ -114,11 +114,8 @@ class ConfigSet:
 class Box(atom.Box):
     """An MPEG-4 decoder configuration atom"""
     def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
         self.config_sets = []
-        file = kwargs.get("file", None)
-        if file is not None:
-            self._readfile(file)
+        super().__init__(*args, **kwargs)
 
     def __repr__(self):
         ret = super().__repr__()
@@ -132,7 +129,8 @@ class Box(atom.Box):
                "\n".join(' '*(self._depth*2) + str(k) for k in self.config_sets)
         return ret
 
-    def _readfile(self, file):
+    def _init_from_file(self, file):
+        super()._init_from_file(file)
         self._read_some(file, 1)
         self.general_config = self._read_some(file, 12)
         self.min_spacial_segmentation = int.from_bytes(self._read_some(file, 2), 'big')
