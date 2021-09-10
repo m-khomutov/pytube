@@ -375,14 +375,12 @@ class TextSampleEntry(SampleEntry):
 
 class Box(atom.FullBox):
     """Sample descriptions (codec types, initialization etc.)"""
+    entries = []
+    video_stream_type = VideoCodecType.UNKNOWN
+
     def __init__(self, *args, **kwargs):
+        self._handler = kwargs.get('hdlr', None)
         super().__init__(*args, **kwargs)
-        file = kwargs.get("file", None)
-        self.entries = []
-        self._handler = None
-        self.video_stream_type = VideoCodecType.UNKNOWN
-        if file is not None:
-            self._readfile(file, kwargs.get('hdlr', None))
 
     def __repr__(self):
         return super().__repr__() + '\n' + '\n'.join(str(k) for k in self.entries)
@@ -391,8 +389,8 @@ class Box(atom.FullBox):
         """Returns box with all entries size"""
         self.size = 16 + sum([k.size for k in self.entries])
 
-    def _readfile(self, file, handler):
-        self._handler = handler
+    def _init_from_file(self, file):
+        super()._init_from_file(file)
         self.entries = self._read_entries(file)
 
     def _read_entry(self, file):

@@ -30,22 +30,19 @@ class Entry:
 
 class Box(FullBox):
     """Decoding time-to-sample box"""
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        file = kwargs.get("file", None)
-        self.entries = []
-        if file is not None:
-            self._readfile(file)
-        else:
-            self.type = 'stts'
-            self.size = 16
+    entries = []
 
     def __repr__(self):
         return super().__repr__() + " entries:" + ''.join([str(k) for k in self.entries])
 
-    def _readfile(self, file):
-        count = int.from_bytes(self._read_some(file, 4), "big")
-        self.entries = list(map(lambda x: self._read_entry(file), range(count)))
+    def _init_from_file(self, file):
+        super()._init_from_file(file)
+        self.entries = self._read_entries(file)
+
+    def _init_from_args(self, **kwargs):
+        self.type = 'stts'
+        super()._init_from_args(**kwargs)
+        self.size = 16
 
     def _read_entry(self, file):
         """Get Entry from file"""

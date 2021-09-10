@@ -13,9 +13,9 @@ class Box(FullBox):
         self.sequence_number = int.from_bytes(self._read_some(file, 4), "big")
 
     def _init_from_args(self, **kwargs):
+        self.type = 'mfhd'
         super()._init_from_args(**kwargs)
         self.size = 16
-        self.type = 'mfhd'
         self.sequence_number = 0
 
     def to_bytes(self):

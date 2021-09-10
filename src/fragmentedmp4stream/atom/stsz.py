@@ -26,8 +26,8 @@ class Box(FullBox):
                          int.from_bytes(self._read_some(file, 4), 'big'), range(self.sample_count)))
 
     def _init_from_args(self, **kwargs):
-        super()._init_from_args(**kwargs)
         self.type = 'stsz'
+        super()._init_from_args(**kwargs)
         self.size = 20
         self.entries = []
         self.sample_size = 0

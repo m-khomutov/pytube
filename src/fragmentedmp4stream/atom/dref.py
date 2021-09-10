@@ -53,10 +53,13 @@ class Box(FullBox):
         return super().__repr__() + " entries:" + \
                ''.join(['\n'+str(k) for k in self._entries])
 
+    def _read_entry(self, file):
+        """Reads entry from file"""
+        return Entry(file=file, depth=self._depth+1)
+
     def _init_from_file(self, file):
         super()._init_from_file(file)
-        count = int.from_bytes(self._read_some(file, 4), "big")
-        self._entries = list(map(lambda x: Entry(file=file, depth=self._depth+1), range(count)))
+        self._entries = self._read_entries(file)
 
     def to_bytes(self):
         ret = super().to_bytes()

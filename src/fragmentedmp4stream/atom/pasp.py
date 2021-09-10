@@ -15,8 +15,8 @@ class Box(Atom):
         self.v_spacing = int.from_bytes(self._read_some(file, 4), "big")
 
     def _init_from_args(self, **kwargs):
-        super()._init_from_args(**kwargs)
         self.type = 'pasp'
+        super()._init_from_args(**kwargs)
         self.size = 16
         self.h_spacing = kwargs.get("h_spacing", 0)
         self.v_spacing = kwargs.get("v_spacing", 0)

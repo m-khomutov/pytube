@@ -52,8 +52,8 @@ class Box(FullBox):
         self.entries = self._read_entries(file)
 
     def _init_from_args(self, **kwargs):
-        super()._init_from_args(**kwargs)
         self.type = 'ctts'
+        super()._init_from_args(**kwargs)
         self.size = 16
 
     def _read_entry(self, file):
