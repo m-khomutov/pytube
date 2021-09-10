@@ -1,7 +1,7 @@
 """Track fragment run"""
 from functools import reduce
 from enum import IntFlag
-from .atom import FullBox
+from .atom import FullBox, full_box_derived
 
 
 class Frame:
@@ -96,25 +96,15 @@ class OptionalFields:
         return reduce(lambda a, b: a + b, [k.to_bytes(4, byteorder='big') for k in none_filter])
 
 
+@full_box_derived
 class Box(FullBox):
     """Track fragment run box"""
+    first_sample_flags, data_offset = (0, 0)
+
     def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        file = kwargs.get("file", None)
-        self.tr_flags = Flags(self.flags)
         self.samples = []
-        if file is not None:
-            self._readfile(file)
-        else:
-            self.size = 16
-            self.type = 'trun'
-            self.tr_flags = Flags(kwargs.get("flags", 0))
-            self.first_sample_flags = kwargs.get("first_sample_flags", 0)
-            self.data_offset = 0
-            if Flags.DATA_OFFSET in self.tr_flags:
-                self.size += 4
-            if Flags.FIRST_SAMPLE_FLAGS in self.tr_flags:
-                self.size += 4
+        super().__init__(*args, **kwargs)
+        self.tr_flags = Flags(self.flags)
 
     def add_sample(self, **kwargs):
         """add optional fields to run box in accordance with flags"""
@@ -154,15 +144,25 @@ class Box(FullBox):
             ret += self.first_sample_flags.to_bytes(4, byteorder='big')
         return ret + reduce(lambda a, b: a + b, map(lambda x: x.to_bytes(), self.samples))
 
-    def _readfile(self, file):
-        count = int.from_bytes(self._read_some(file, 4), "big")
+    def init_from_file(self, file):
+        self.samples = self._read_entries(file)
         if Flags.DATA_OFFSET in self.tr_flags:
             self.data_offset = int.from_bytes(self._read_some(file, 4), "big")
         if Flags.FIRST_SAMPLE_FLAGS in self.tr_flags:
             self.first_sample_flags = int.from_bytes(self._read_some(file, 4), "big")
-        self.samples = [map(lambda: self._read_sample(file), range(count))]
 
-    def _read_sample(self, file):
+    def init_from_args(self, **kwargs):
+        self.size = 16
+        self.type = 'trun'
+        self.tr_flags = Flags(kwargs.get("flags", 0))
+        self.first_sample_flags = kwargs.get("first_sample_flags", 0)
+        self.data_offset = 0
+        if Flags.DATA_OFFSET in self.tr_flags:
+            self.size += 4
+        if Flags.FIRST_SAMPLE_FLAGS in self.tr_flags:
+            self.size += 4
+
+    def _read_entry(self, file):
         """read sample fields in accordance with option flags"""
         duration = size = flags = time_offsets = None
         if Flags.SAMPLE_DURATION in self.tr_flags:

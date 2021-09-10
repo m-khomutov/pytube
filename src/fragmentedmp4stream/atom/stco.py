@@ -1,5 +1,5 @@
 """The chunk offset table gives the index of each chunk into the containing file"""
-from .atom import FullBox
+from .atom import FullBox, full_box_derived
 
 
 def atom_type():
@@ -7,24 +7,23 @@ def atom_type():
     return 'stco'
 
 
+@full_box_derived
 class Box(FullBox):
     """Chunk offset, partial data-offset information"""
     entries = []
 
     def __repr__(self):
-        ret = super().__repr__() + \
-              ' offsets:[' + ' '.join(str(k) for k in self.entries) + ']'
+        ret = super().__repr__() + ' offsets:[' + \
+              ' '.join(str(k) for k in self.entries) + ']'
         return ret
 
-    def _init_from_file(self, file):
-        super()._init_from_file(file)
+    def init_from_file(self, file):
         count = int.from_bytes(self._read_some(file, 4), "big")
         self.entries = list(
             map(lambda x: int.from_bytes(self._read_some(file, 4), "big"), range(count))
         )
 
-    def _init_from_args(self, **kwargs):
-        super()._init_from_args(**kwargs)
+    def init_from_args(self, **kwargs):
         self.type = 'stco'
         self.size = 16
 

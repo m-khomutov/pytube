@@ -1,5 +1,5 @@
 """Decoding time-to-sample"""
-from .atom import FullBox
+from .atom import FullBox, full_box_derived
 
 
 def atom_type():
@@ -28,6 +28,7 @@ class Entry:
         return self.count.to_bytes(4, byteorder='big') + self.delta.to_bytes(4, byteorder='big')
 
 
+@full_box_derived
 class Box(FullBox):
     """Decoding time-to-sample box"""
     entries = []
@@ -35,13 +36,11 @@ class Box(FullBox):
     def __repr__(self):
         return super().__repr__() + " entries:" + ''.join([str(k) for k in self.entries])
 
-    def _init_from_file(self, file):
-        super()._init_from_file(file)
+    def init_from_file(self, file):
         self.entries = self._read_entries(file)
 
-    def _init_from_args(self, **kwargs):
+    def init_from_args(self, **kwargs):
         self.type = 'stts'
-        super()._init_from_args(**kwargs)
         self.size = 16
 
     def _read_entry(self, file):

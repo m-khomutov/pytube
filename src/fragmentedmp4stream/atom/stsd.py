@@ -4,7 +4,8 @@
 """
 from functools import reduce
 from enum import IntEnum
-from . import atom, esds, avcc, hvcc, pasp, fiel
+from .atom import FullBox, full_box_derived, Box as Atom
+from . import esds, avcc, hvcc, pasp, fiel
 
 
 def atom_type():
@@ -19,7 +20,7 @@ class VideoCodecType(IntEnum):
     HEVC = 2
 
 
-class SampleEntry(atom.Box):
+class SampleEntry(Atom):
     """The information stored in the sample description box
        is both track-type specific and can also have variants within a track type
     """
@@ -59,7 +60,7 @@ class VisualSampleEntry(SampleEntry):
             left = self.size - (file.tell()-self.position)
             self.inner_boxes = {}  # [avcC hvcC pasp fiel]
             while left > 0:
-                box = atom.Box(file=file, depth=self._depth + 1)
+                box = Atom(file=file, depth=self._depth + 1)
                 if box.type == 'avcC':
                     file.seek(box.position)
                     inner_box = avcc.Box(file=file, depth=self._depth + 1)
@@ -126,7 +127,7 @@ class AudioSampleEntry(SampleEntry):
             self.sample_rate = int.from_bytes(self._read_some(file, 4), "big")
             left = self.size - (file.tell()-self.position)
             while left > 0:
-                box = atom.Box(file=file, depth=self._depth + 1)
+                box = Atom(file=file, depth=self._depth + 1)
                 if box.type == 'esds':
                     file.seek(box.position)
                     self.stream_descriptors = esds.Box(file=file, depth=self._depth + 1)
@@ -180,7 +181,7 @@ class StyleRecord:
                     style += '|'
                 style += 'italic'
             if self._fields[3] & 4 != 0:
-                if style > 0:
+                if style:
                     style += '|'
                 style += 'underline'
             ret += style
@@ -275,7 +276,7 @@ class FontRecord:
         return ret
 
 
-class FontTableBox(atom.Box):
+class FontTableBox(Atom):
     """The atom specifies fonts used to display the subtitle"""
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -373,7 +374,8 @@ class TextSampleEntry(SampleEntry):
         return ret
 
 
-class Box(atom.FullBox):
+@full_box_derived
+class Box(FullBox):
     """Sample descriptions (codec types, initialization etc.)"""
     entries = []
     video_stream_type = VideoCodecType.UNKNOWN
@@ -389,8 +391,7 @@ class Box(atom.FullBox):
         """Returns box with all entries size"""
         self.size = 16 + sum([k.size for k in self.entries])
 
-    def _init_from_file(self, file):
-        super()._init_from_file(file)
+    def init_from_file(self, file):
         self.entries = self._read_entries(file)
 
     def _read_entry(self, file):

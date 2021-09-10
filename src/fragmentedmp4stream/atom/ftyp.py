@@ -9,6 +9,9 @@ def atom_type():
 
 class Box(Atom):
     """File type and compatibility box"""
+    major_brand = ''
+    minor_version = 0
+    compatible_brands = []
 
     def __repr__(self):
         ret = super().__repr__() + \
@@ -16,7 +19,7 @@ class Box(Atom):
         ret += ' '.join(k for k in self.compatible_brands) + ']'
         return ret
 
-    def _init_from_file(self, file):
+    def init_from_file(self, file):
         self.major_brand = self._read_some(file, 4).decode("utf-8")
         self.minor_version = int.from_bytes(self._read_some(file, 4), "big")
         left = int((self.position + self.size - file.tell()) / 4)

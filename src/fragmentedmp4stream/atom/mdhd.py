@@ -2,7 +2,7 @@
    and relevant to characteristics of the media in a track.
 """
 from bitstring import BitArray
-from .atom import FullBox
+from .atom import FullBox, full_box_derived
 
 
 def atom_type():
@@ -10,8 +10,14 @@ def atom_type():
     return 'mdhd'
 
 
+@full_box_derived
 class Box(FullBox):
     """Media header box, overall information about the media"""
+    creation_time = 0
+    modification_time = 0
+    timescale = 0
+    duration = 0
+    language = ''
 
     def __repr__(self):
         return super().__repr__() + \
@@ -21,8 +27,7 @@ class Box(FullBox):
               f' duration:{self.duration}' \
               f' language:{self.language}'
 
-    def _init_from_file(self, file):
-        super()._init_from_file(file)
+    def init_from_file(self, file):
         if self.version == 1:
             self.creation_time = int.from_bytes(self._read_some(file, 8), "big")
             self.modification_time = int.from_bytes(self._read_some(file, 8), "big")

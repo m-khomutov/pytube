@@ -1,6 +1,6 @@
 """Video media header, overall information"""
 from functools import reduce
-from .atom import FullBox
+from .atom import FullBox, full_box_derived
 
 
 def atom_type():
@@ -8,6 +8,7 @@ def atom_type():
     return 'vmhd'
 
 
+@full_box_derived
 class Box(FullBox):
     """Video media header box"""
     _graphics_mode = 0
@@ -17,8 +18,7 @@ class Box(FullBox):
         return super().__repr__() + " graphics mode:" + str(self._graphics_mode) + \
                " color:" + str(self._color_channels)
 
-    def _init_from_file(self, file):
-        super()._init_from_file(file)
+    def init_from_file(self, file):
         self._graphics_mode = int.from_bytes(self._read_some(file, 2), "big")
         self._color_channels = list(map(lambda x: int.from_bytes(self._read_some(file, 2), "big"),
                                         range(3)))

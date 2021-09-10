@@ -1,7 +1,7 @@
 """The sound media header contains general presentation information,
    independent of the coding, for audio media
 """
-from .atom import FullBox
+from .atom import FullBox, full_box_derived
 
 
 def atom_type():
@@ -9,14 +9,15 @@ def atom_type():
     return 'smhd'
 
 
+@full_box_derived
 class Box(FullBox):
     """Sound media header, overall information (sound track only"""
+    balance = 0
 
     def __repr__(self):
         return super().__repr__() + f" balance:{self.balance}"
 
-    def _init_from_file(self, file):
-        super()._init_from_file(file)
+    def init_from_file(self, file):
         self.balance = int.from_bytes(self._read_some(file, 2), "big")
         self._read_some(file, 2)
 

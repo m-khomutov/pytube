@@ -3,7 +3,7 @@
    used within the presentation.
 """
 from functools import reduce
-from .atom import FullBox
+from .atom import FullBox, full_box_derived
 
 
 def atom_type():
@@ -46,8 +46,10 @@ class Entry(FullBox):
         return ret
 
 
+@full_box_derived
 class Box(FullBox):
     """data reference box, declares source(s) of media data in track"""
+    _entries = []
 
     def __repr__(self):
         return super().__repr__() + " entries:" + \
@@ -57,8 +59,7 @@ class Box(FullBox):
         """Reads entry from file"""
         return Entry(file=file, depth=self._depth+1)
 
-    def _init_from_file(self, file):
-        super()._init_from_file(file)
+    def init_from_file(self, file):
         self._entries = self._read_entries(file)
 
     def to_bytes(self):

@@ -37,7 +37,8 @@ class Box:
             return ret
         raise EOFError()
 
-    def __init__(self, **kwargs):
+    def __init__(self, *args, **kwargs):
+        len(args)
         self._user_type = []
         self._inner_boxes = []
         self._depth = 0
@@ -45,11 +46,11 @@ class Box:
         file = kwargs.get("file", None)
         if file is not None:
             self._fromfile(file, kwargs.get("depth", None))
-            self._init_from_file(file)
+            self.init_from_file(file)
         else:
             self.type = kwargs.get("type", None)
             self.size = 8
-            self._init_from_args(**kwargs)
+            self.init_from_args(**kwargs)
 
     def __repr__(self):
         ret = " " * (self._depth * 2) + \
@@ -66,11 +67,11 @@ class Box:
     def __iter__(self):
         return BoxIterator(self)
 
-    def _init_from_file(self, file):
+    def init_from_file(self, file):
         """Virtual function for derived classes to initialize from file"""
         pass
 
-    def _init_from_args(self, **kwargs):
+    def init_from_args(self, **kwargs):
         """Virtual function for derived classes to initialize from args"""
         pass
 
@@ -155,19 +156,37 @@ class Box:
         self._depth = depth
 
 
+def full_box_derived(cls):
+    """Decorator to add parent initialization in child boxes"""
+    class Wrapper(cls):
+        """Class decorator redefining initialization methods"""
+        def init_from_file(self, file):
+            """Reads box fields from mp4 file"""
+            FullBox.init_from_file(self, file)
+            super().init_from_file(file)
+
+        def init_from_args(self, **kwargs):
+            """Gets box fields from arguments"""
+            FullBox.init_from_args(self, **kwargs)
+            super().init_from_args(**kwargs)
+    return Wrapper
+
+
 class FullBox(Box):
     """A box with a version number and flags field"""
+    version = 0
+    flags = 0
 
     def __repr__(self):
         ret = super().__repr__() + f" version:{self.version} flags:{self.flags:x}"
         ret += '\n'.join(str(k) for k in self._inner_boxes)
         return ret
 
-    def _init_from_file(self, file):
+    def init_from_file(self, file):
         self.version = self._read_some(file, 1)[0]
         self.flags = int.from_bytes(self._read_some(file, 3), "big")
 
-    def _init_from_args(self, **kwargs):
+    def init_from_args(self, **kwargs):
         self.version = kwargs.get("version", 0)
         self.flags = kwargs.get("flags", 0)
         self.size = 12

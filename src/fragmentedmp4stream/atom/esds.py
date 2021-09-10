@@ -1,5 +1,5 @@
 """An MPEG-4 elementary stream descriptor atom. This extension is required for MPEG-4 video"""
-from .atom import FullBox
+from .atom import FullBox, full_box_derived
 
 
 class Descriptor:
@@ -165,20 +165,17 @@ class SLConfigDescriptor(Descriptor):
         return super().to_bytes() + self.value.to_bytes(1, byteorder='big')
 
 
+@full_box_derived
 class Box(FullBox):
     """An MPEG-4 elementary stream descriptor box"""
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.descriptors = []
-        file = kwargs.get("file", None)
-        if file is not None:
-            self._readfile(file)
+    descriptors = []
 
     def __repr__(self):
         return super().__repr__() + \
                ' descriptors: [' + ''.join('{'+str(d)+'}' for d in self.descriptors) + ']'
 
-    def _readfile(self, file):
+    def init_from_file(self, file):
+        self.descriptors = []
         left = self.size - (file.tell() - self.position)
         while left > 0:
             tag = file.read(1)[0]

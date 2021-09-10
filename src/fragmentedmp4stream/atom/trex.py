@@ -1,5 +1,5 @@
 """Track extends box sets up default values used by the movie fragments"""
-from .atom import FullBox
+from .atom import FullBox, full_box_derived
 
 
 class SampleFlags:
@@ -57,6 +57,7 @@ class SampleFlags:
         return self._has_redundancy
 
 
+@full_box_derived
 class Box(FullBox):
     """Track extends box"""
 

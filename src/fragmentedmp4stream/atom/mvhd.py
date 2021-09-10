@@ -2,7 +2,7 @@
    and relevant to the entire presentation considered as a whole
 """
 from functools import reduce
-from .atom import FullBox
+from .atom import FullBox, full_box_derived
 
 
 def atom_type():
@@ -10,8 +10,16 @@ def atom_type():
     return 'mvhd'
 
 
+@full_box_derived
 class Box(FullBox):
     """Movie header, overall declarations"""
+    time = (0, 0)
+    timescale = 0
+    duration = 0
+    rate = 0
+    volume = 0
+    matrix = []
+    next_track_id = 0
 
     def __repr__(self):
         ret = super().__repr__() + \
@@ -24,8 +32,7 @@ class Box(FullBox):
         ret += f" nextTrackID:{self.next_track_id}"
         return ret
 
-    def _init_from_file(self, file):
-        super()._init_from_file(file)
+    def init_from_file(self, file):
         if self.version == 1:
             self.time = (int.from_bytes(self._read_some(file, 8), "big"),
                          int.from_bytes(self._read_some(file, 8), "big"))

@@ -1,6 +1,6 @@
 """Track header, overall information about the track"""
 from functools import reduce
-from .atom import FullBox
+from .atom import FullBox, full_box_derived
 
 
 def atom_type():
@@ -8,8 +8,14 @@ def atom_type():
     return 'tkhd'
 
 
+@full_box_derived
 class Box(FullBox):
     """Track header box"""
+    timing = (0, 0)
+    track_id, duration = 0, 0
+    track_info = (0, 0, 0)  # layer alternative_group volume
+    matrix = []
+    width, height = 0, 0
 
     def __repr__(self):
         return super().__repr__() + \
@@ -26,8 +32,7 @@ class Box(FullBox):
                                            self.width,
                                            self.height)
 
-    def _init_from_file(self, file):
-        super()._init_from_file(file)
+    def init_from_file(self, file):
         if self.version == 1:
             self.timing = (
                 int.from_bytes(self._read_some(file, 8), "big"),  # creation

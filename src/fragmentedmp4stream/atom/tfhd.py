@@ -1,7 +1,7 @@
 """Track fragment header sets up information and defaults used for
 runs of samples"""
 from enum import IntFlag
-from .atom import FullBox
+from .atom import FullBox, full_box_derived
 
 
 class Flags(IntFlag):
@@ -18,8 +18,7 @@ class OptionalFields:
     """Track fragment header optional fields"""
     _size = 0
 
-    def __init__(self, flags, *args, **kwargs):
-        len(args)
+    def __init__(self, flags, **kwargs):
         self._flags = flags
         file = kwargs.get("file", None)
         if file is not None:
@@ -93,25 +92,15 @@ class OptionalFields:
         return ret
 
 
+@full_box_derived
 class Box(FullBox):
     """Track fragment header box"""
+    track_id = 0
+    _optional_fields = None
+
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        file = kwargs.get("file", None)
-        self.size = 16
-        if file is not None:
-            self._readfile(file)
-        else:
-            self._optional_fields =\
-                OptionalFields(Flags(self.flags),
-                               data_offset=kwargs.get('data_offset', None),
-                               description_index=kwargs.get("description_index", None),
-                               default_sample_duration=kwargs.get('default_sample_duration', None),
-                               default_sample_size=kwargs.get("default_sample_size", None),
-                               default_sample_flags=kwargs.get('default_sample_flags', None))
-            self.type = 'tfhd'
-            self.track_id = kwargs.get("track_id", 0)
-        self.size += len(self._optional_fields)
+        self.size = 16 + len(self._optional_fields)
 
     def __repr__(self):
         return super().__repr__() + " trackId:" + str(self.track_id) +\
@@ -121,6 +110,17 @@ class Box(FullBox):
         return super().to_bytes() + self.track_id.to_bytes(4, byteorder='big') +\
                self._optional_fields.to_bytes()
 
-    def _readfile(self, file):
+    def init_from_file(self, file):
         self.track_id = int.from_bytes(self._read_some(file, 4), "big")
         self._optional_fields = OptionalFields(Flags(self.flags), file=file)
+
+    def init_from_args(self, **kwargs):
+        self._optional_fields = \
+            OptionalFields(Flags(self.flags),
+                           data_offset=kwargs.get('data_offset', None),
+                           description_index=kwargs.get("description_index", None),
+                           default_sample_duration=kwargs.get('default_sample_duration', None),
+                           default_sample_size=kwargs.get("default_sample_size", None),
+                           default_sample_flags=kwargs.get('default_sample_flags', None))
+        self.type = 'tfhd'
+        self.track_id = kwargs.get("track_id", 0)

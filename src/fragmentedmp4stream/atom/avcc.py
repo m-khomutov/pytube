@@ -6,6 +6,11 @@ from . import atom
 
 class Box(atom.Box):
     """An MPEG-4 decoder configuration atom"""
+    initial_parameters = 0
+    unit_len = 0
+    sps = []
+    pps = []
+    appendix = b''
 
     def __repr__(self):
         ret = super().__repr__() + " version:" + str(self.initial_parameters[0]) + \
@@ -23,8 +28,7 @@ class Box(atom.Box):
         )
         return ret + ']'
 
-    def _init_from_file(self, file):
-        super()._init_from_file(file)
+    def init_from_file(self, file):
         self.initial_parameters = file.read(4)
         self.unit_len = self._read_some(file, 1)[0] & 3  # 1 byte = 0; 2 bytes = 1; 4 bytes = 3
         count = self._read_some(file, 1)[0] & 0x1f
@@ -37,8 +41,8 @@ class Box(atom.Box):
         self.pps = list(map(lambda x: self._read_parameter_set(file), range(count)))
         for pps in self.pps:
             actual_size += len(pps) + 2
-        self.appendix = b'' if actual_size >= self.size \
-            else self._read_some(file, self.size - actual_size)
+        if actual_size < self.size:
+            self.appendix = self._read_some(file, self.size - actual_size)
 
     def _read_parameter_set(self, file):
         """reads one parameter set from file"""
