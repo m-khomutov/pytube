@@ -9,9 +9,28 @@ class Frame:
     duration, offset, size = 0, 0, 0
     composition_time = None
     _data = b''
+    _chunk_offset = 0
+
+    def __init__(self, unit_size_bytes=0):
+        self._unit_size_bytes = unit_size_bytes
+
+    def __iter__(self):
+        return self
+
+    def __next__(self):
+        if self._chunk_offset >= self.size:
+            raise StopIteration
+        if self._unit_size_bytes == 0:
+            self._chunk_offset = self.size
+            return self._data
+        chunk_size = int.from_bytes(
+            self._data[self._chunk_offset:self._chunk_offset+self._unit_size_bytes], byteorder='big'
+        )
+        self._chunk_offset += self._unit_size_bytes + chunk_size
+        return self._data[self._chunk_offset-chunk_size:self._chunk_offset]
 
     def __str__(self):
-        return f'duration:{self.duration} offset:{self.offset}' \
+        return f'duration:{self.duration} offset:{self.offset} ' \
                f'size:{self.size} composition_time:{self.composition_time}'
 
     def __repr__(self):

@@ -98,16 +98,16 @@ class SamplesCttsInfo:
                 self.index[1] += 1
 
 
-class SamplesInfo:
+class SamplesInfo:  # pylint: disable=too-many-instance-attributes
     """Composite information of sample atoms"""
+    offset, size, unit_size_bytes = 0, 0, 0
+
     def __init__(self):
         self.stco = SamplesStcoInfo([])
         self.stsz = SamplesStszInfo([])
         self.stts = SamplesSttsInfo([])
         self.ctts = SamplesCttsInfo()
         self.stsc = SamplesStscInfo([])
-        self.offset = 0
-        self.size = 0
 
     def fill_chunk_offset_info(self, info):
         """Sets chunk offset information"""
@@ -131,7 +131,7 @@ class SamplesInfo:
 
     def sample(self):
         """Returns a specific sample information"""
-        ret = trun.Frame()
+        ret = trun.Frame(self.unit_size_bytes)
         if self.stsc.is_iterate_offset():
             ret.offset = self.offset = self.stco.offset()
         else:
@@ -261,6 +261,8 @@ class Reader:
         if box.type == stsd.atom_type():
             if self.hdlr == 'vide':
                 self.video_stream_type = box.video_stream_type
+                self.samples_info[self.track_id].unit_size_bytes = \
+                    box.video_configuration_box().unit_length
 
     def _on_stsz(self, box):
         """Manager Sample Sizes box"""

@@ -10,6 +10,7 @@ import time
 from .reader import Reader
 from .writer import Writer
 from .segmenter import SegmentMaker
+from .rtsp.service import Service as RtspService
 
 
 def make_handler(params):
@@ -157,14 +158,17 @@ class Service:
         logging.basicConfig(level=logging.INFO)
         server_address = ('', port)
         params['segment_makers'] = self.segment_makers
-        handler_class = make_handler(params)
-        httpd = server_class(server_address, handler_class)
+        rtspd = RtspService(server_address, params)
+        # handler_class = make_handler(params)
+        # httpd = server_class(server_address, handler_class)
         logging.info('Starting httpd...')
         try:
-            httpd.serve_forever()
+            rtspd.run()
+            #httpd.serve_forever()
         except KeyboardInterrupt:
             pass
-        httpd.server_close()
+        rtspd.close()
+        #httpd.server_close()
         logging.info('Stopping')
 
 

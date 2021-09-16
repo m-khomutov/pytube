@@ -88,14 +88,17 @@ class VisualSampleEntry(SampleEntry):
 
     def __repr__(self):
         ret = super().__repr__() + \
-              f" width:{self.geometry[0]} height:{self.geometry[1]}" +\
-              " h_resolution:" + hex(self.resolution[0]) + \
-              " v_resolution:" + hex(self.resolution[1]) + \
-              f" frame_count:{self.frame_count}" \
-              f" compressor_name:'{self.compressor_name}'" \
-              f" depth:{self.color_depth}\n"
-        ret += '\n'.join(str(self.inner_boxes[k]) for k in self.inner_boxes)
+            f" width:{self.geometry[0]} height:{self.geometry[1]}" +\
+            " h_resolution:" + hex(self.resolution[0]) + \
+            " v_resolution:" + hex(self.resolution[1]) + \
+            f" frame_count:{self.frame_count}" + \
+            f" depth:{self.color_depth}\n" + \
+            '\n'.join(str(self.inner_boxes[k]) for k in self.inner_boxes)
         return ret
+
+    def get(self, box_type):
+        """Returns inner box by its type"""
+        return self.inner_boxes.get(box_type, None)
 
     def to_bytes(self):
         ret = super().to_bytes()
@@ -141,6 +144,24 @@ class AudioSampleEntry(SampleEntry):
         if self.stream_descriptors is not None:
             ret += f"\n{self.stream_descriptors}"
         return ret
+
+    @property
+    def rtpmap(self):
+        """Returns RTPMAP structure"""
+        if self.type == 'mp4a':
+            return 'MPEG4-GENERIC/' + \
+                   str(self.sample_rate >> 16) + '/' + str(self.channel_count)
+        return ''
+
+    @property
+    def config(self):
+        """Returns audio specific config"""
+        if self.stream_descriptors is not None:
+            try:
+                return self.stream_descriptors.config
+            except:  # noqa # pylint: disable=bare-except
+                pass
+        return ''
 
     def to_bytes(self):
         ret = super().to_bytes()
@@ -381,11 +402,19 @@ class Box(FullBox):
     video_stream_type = VideoCodecType.UNKNOWN
 
     def __init__(self, *args, **kwargs):
-        self._handler = kwargs.get('hdlr', None)
+        self.handler = kwargs.get('hdlr', None)
         super().__init__(*args, **kwargs)
 
     def __repr__(self):
         return super().__repr__() + '\n' + '\n'.join(str(k) for k in self.entries)
+
+    def video_configuration_box(self):
+        """Returns AVC or HVC ConfigurationBox"""
+        if self.handler == 'vide' and self.entries:
+            if self.video_stream_type == VideoCodecType.AVC:
+                return self.entries[0].get('avcC')
+            return self.entries[0].get('hvcC')
+        return None
 
     def normalize(self):
         """Returns box with all entries size"""
@@ -396,16 +425,16 @@ class Box(FullBox):
 
     def _read_entry(self, file):
         """Reads entry of specific type"""
-        if self._handler == 'vide':
+        if self.handler == 'vide':
             entry = VisualSampleEntry(file=file, depth=self._depth+1)
             if entry.inner_boxes.get('avcC') is not None:
                 self.video_stream_type = VideoCodecType.AVC
             elif entry.inner_boxes.get('hvcC') is not None:
                 self.video_stream_type = VideoCodecType.HEVC
             return entry
-        if self._handler == 'soun':
+        if self.handler == 'soun':
             return AudioSampleEntry(file=file, depth=self._depth+1)
-        if self._handler == 'text':
+        if self.handler == 'text':
             return TextSampleEntry(file=file, depth=self._depth+1)
         return SampleEntry()
 

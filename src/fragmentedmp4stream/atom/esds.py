@@ -125,6 +125,9 @@ class ConfigDescriptor(Descriptor):
         self.max_bit_rate = int.from_bytes(file.read(4), 'big')
         self.av_bit_rate = int.from_bytes(file.read(4), 'big')
 
+    def __str__(self):
+        return super().__str__() + ' ' + self.__repr__()
+
     def __repr__(self):
         return f" obj:'{self._object_type}' stream:'{self._stream_type}'" + \
                f" buf size:{self.buffer_size} max br:{self.max_bit_rate}" + \
@@ -142,14 +145,21 @@ class DecoderSpecificDescriptor(Descriptor):
     """An elementary stream decoder descriptor for MPEG-4 video"""
     def __init__(self, file):
         super().__init__(5, file)
-        self.header_start_codes = file.read(len(self))
+        self._header_start_codes = file.read(len(self))
+
+    def __str__(self):
+        return super().__str__() + ' ' + self.__repr__()
 
     def __repr__(self):
-        return " start_codes:[ " + \
-               ''.join('{:x}'.format(x) for x in self.header_start_codes) + ']'
+        return " start_codes:[" + self.config + ']'
+
+    @property
+    def config(self):
+        """Returns header as hex string"""
+        return ''.join('{:02x}'.format(x) for x in self._header_start_codes)
 
     def to_bytes(self):
-        return super().to_bytes() + self.header_start_codes
+        return super().to_bytes() + self._header_start_codes
 
 
 class SLConfigDescriptor(Descriptor):
@@ -190,6 +200,11 @@ class Box(FullBox):
             else:
                 break
             left = self.size - (file.tell() - self.position)
+
+    @property
+    def config(self):
+        """Returns header from decoder specific descriptor"""
+        return [desc for desc in self.descriptors if desc.tag == 5][0].config
 
     def to_bytes(self):
         ret = super().to_bytes()
