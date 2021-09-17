@@ -1,6 +1,5 @@
+"""RTSP protocol network client"""
 import os
-import types
-import selectors
 from datetime import datetime
 from .session import Session as RtspSession
 
@@ -8,6 +7,7 @@ from .session import Session as RtspSession
 class Connection:
     """Manages RTSP protocol network client activity"""
     _session = None
+    _playing = False
 
     @staticmethod
     def _datetime():
@@ -19,32 +19,31 @@ class Connection:
     def _sequence_number(headers):
         return str.encode([k for k in headers if 'CSeq: ' in k][0] + '\r\n')
 
-    def __init__(self, socket_address, selector, root):
-        self._socket, self._address = socket_address
-        self._root = root
+    def __init__(self, address, params):
+        self._root = params.get("root", ".")
+        self._verbal = params.get("verb", False)
+        self._address = address
         print(f'RTSP connect from {self._address}')
-        self._socket.setblocking(False)
-        data = types.SimpleNamespace(addr=self._address, inb=b'', outb=b'')
-        events = selectors.EVENT_READ | selectors.EVENT_WRITE
-        selector.register(self._socket, events, data=data)
 
-    def on_event(self, key, mask, selector):
-        if mask & selectors.EVENT_READ:
-            data = self._socket.recv(1024)  # Should be ready to read
-            if data:
-                key.data.inb += data
-                if key.data.inb.find(bytes([0x0d, 0x0a, 0x0d, 0x0a])):
-                    self._on_rtsp_directive(key.data)
-                    key.data.inb = b''
-            else:
-                print('closing connection to', key.data.addr, "- -", self._address)
-                selector.unregister(self._socket)
-                self._socket.close()
-                raise EOFError()
-        if mask & selectors.EVENT_WRITE:
-            if key.data.outb:
-                sent = self._socket.send(key.data.outb)  # Should be ready to write
-                key.data.outb = key.data.outb[sent:]
+    def on_read_event(self, key):
+        """Manager read socket event"""
+        data = key.fileobj.recv(1024)  # Should be ready to read
+        if data:
+            key.data.inb += data
+            if key.data.inb.find(bytes([0x0d, 0x0a, 0x0d, 0x0a])):
+                self._on_rtsp_directive(key.data)
+                key.data.inb = b''
+                return
+        print('closing connection to', key.data.addr, "- -", self._address)
+        raise EOFError()
+
+    def on_write_event(self, key):
+        """Manager write socket event"""
+        if key.data.outb:
+            sent = key.fileobj.send(key.data.outb)  # Should be ready to write
+            key.data.outb = key.data.outb[sent:]
+        if self._session and self._playing:
+            key.data.outb = self._session.get_next_frame()
 
     def _on_rtsp_directive(self, data):
         """Manages RTSP directive"""
@@ -67,12 +66,10 @@ class Connection:
                 return
             if headers[0][:9] == "TEARDOWN ":
                 self._on_teardown(headers, data)
-                pass
         except:  # noqa # pylint: disable=bare-except
             data.outb = str.encode('RTSP/1.0 400 Bad Request\r\n') + \
                 self._sequence_number(headers) + \
                 str.encode('\r\n')
-            pass
 
     def _on_options(self, headers, data):
         """Manager OPTIONS RTSP directive"""
@@ -119,7 +116,7 @@ class Connection:
                 self._datetime() + \
                 self._session.identification + \
                 str.encode('\r\n')
-            # self._session.start_streaming()
+            self._playing = True
             return
         data.outb = str.encode('RTSP/1.0 406 Not Acceptable\r\n') + \
             self._sequence_number(headers) + \
@@ -133,9 +130,10 @@ class Connection:
                 self._datetime() + \
                 self._session.identification + \
                 str.encode('\r\n')
+            self._playing = False
 
     def _prepare_sdp(self, content_base, filename):
-        self._session = RtspSession(content_base, filename, self._socket, 0)#self._verbal)
+        self._session = RtspSession(content_base, filename, self._verbal)
         ret = 'v=0\r\n' + \
               'o=- 0 0 IN IP4 ' + self._address[0] + '\r\n' + \
               's=No Title\r\n' + \

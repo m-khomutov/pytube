@@ -12,8 +12,8 @@ class Session:
     _sdp = ''
     _streamer = None
 
-    def __init__(self, content_base, filename, connection, verbal):
-        self._streamer = RtpStreamer(Reader(filename), connection, verbal)
+    def __init__(self, content_base, filename, verbal):
+        self._streamer = RtpStreamer(Reader(filename), verbal)
         self._content_base = content_base
         for box in self._streamer.reader.find_box('stsd'):
             if box.handler == 'vide':
@@ -22,7 +22,8 @@ class Session:
                 self._sdp += self._make_audio_sdp(box.entries)
 
     def __del__(self):
-        self._streamer.join()
+        # self._streamer.join()
+        pass
 
     def add_stream(self, headers):
         """Adds a controlled stream"""
@@ -39,9 +40,9 @@ class Session:
         session_id = [k for k in headers if 'Session: ' in k][0][9:]
         return content == self._content_base and session_id == self._session_id
 
-    def start_streaming(self):
-        """Creates media stream in RTP interleaved protocol"""
-        self._streamer.start()
+    def get_next_frame(self):
+        """If time has come writes next media frame"""
+        return self._streamer.next_frame()
 
     @property
     def content_base(self):

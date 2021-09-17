@@ -1,5 +1,4 @@
 """RTP interleaved protocol entities"""
-import threading
 import time
 import random
 import logging
@@ -34,7 +33,7 @@ class Header:
         return ret
 
 
-class FragmentMaker:
+class FragmentMaker:  # pylint: disable=too-few-public-methods
     """Fragments data on Fragmented Units"""
     def __init__(self, sample, chunk_size=1472):
         self._sample = sample
@@ -67,53 +66,48 @@ class FragmentMaker:
         return self
 
 
-class Streamer(threading.Thread):
+class Streamer:
     """Streams media data in RTP interleaved protocol"""
-    _running = True
+    _last_frame_time_ms, _frame_duration_ms = 0, 0
+    _duration_error = 0.
 
-    def __init__(self, reader, connection, verbal):
-        super().__init__()
+    def __init__(self, reader, verbal):
         self._verbal = verbal
-        self._connection = connection
         self._timestamp = random.randint(0, 0xffffffff)
         self._reader = reader
         if self._verbal:
             logging.info(self._reader)
-        self._lock = threading.Lock()
         self._rtp_header = Header(96, 0, random.randint(0, 0xffffffff))
 
-    def run(self) -> None:
-        while self._is_running():
+    def next_frame(self):
+        """Reads and returns next frame from mp4 file"""
+        ret = b''
+        current_time_ms = int(round(time.time() * 1000))
+        if current_time_ms - self._last_frame_time_ms >= self._frame_duration_ms:
             track_id = 1
             timescale = self._reader.timescale[track_id]
             sample = self._reader.next_sample(track_id)
-            #print(str(sample))
+            if self._verbal:
+                print(str(sample))
             for chunk in sample:
                 for marker, data_unit in FragmentMaker(chunk):
-                    packet = self._rtp_header.to_bytes(marker, self._timestamp, len(data_unit)) +\
-                             data_unit
-                    # if self._verbal:
-                    #print(' '.join(map(lambda x: '{:02x}'.format(packet[x]), range(19))))
-                    try:
-                        self._connection.sendall(packet)
-                    except:  # noqa # pylint: disable=bare-except
-                        break
-            time.sleep(sample.duration / timescale)
-            self._timestamp += int(sample.duration * 1000 / timescale)
-
-    def join(self, timeout=None) -> None:
-        """Stops streaming in thread-safe manner"""
-        with self._lock:
-            self._running = False
-        if super().is_alive():
-            super().join(timeout)
+                    packet = self._rtp_header.to_bytes(marker,
+                                                       self._timestamp,
+                                                       len(data_unit)) + \
+                           data_unit
+                    if self._verbal:
+                        print(' '.join(map(lambda x, p=packet: '{:02x}'.format(p[x]), range(19))))
+                    ret += packet
+            self._frame_duration_ms = int(sample.duration * 1000 / timescale)
+            self._duration_error += (sample.duration * 1000 / timescale) - self._frame_duration_ms
+            if self._duration_error > 1:
+                self._frame_duration_ms += int(self._duration_error)
+                self._duration_error -= int(self._duration_error)
+            self._timestamp += self._frame_duration_ms
+            self._last_frame_time_ms = current_time_ms
+        return ret
 
     @property
     def reader(self):
         """Returns mp4 file reader"""
         return self._reader
-
-    def _is_running(self):
-        """Verifies if streaming is to be stopped in thread-safe manner"""
-        with self._lock:
-            return self._running

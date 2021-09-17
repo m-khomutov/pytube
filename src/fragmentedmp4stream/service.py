@@ -143,7 +143,7 @@ class Service:
     @staticmethod
     def print_options():
         """Informs about program terminal arguments"""
-        print("params:\n\t-p(--port) port to bind(def 4555)\n\t"
+        print("params:\n\t-p(--ports) ports to bind[http, rtsp] (def 4555,4556)\n\t"
               "-r(--root) files directory(req)\n\t"
               "-s(--segment) segment duration floor\n\t"
               "-c(--cache) cache segmentation as .*.cache files\n\t"
@@ -153,22 +153,21 @@ class Service:
     def __init__(self):
         self.segment_makers = {}
 
-    def run(self, port, params, server_class=ThreadedHTTPServer):
+    def run(self, ports, params, server_class=ThreadedHTTPServer):
         """Starts http server"""
         logging.basicConfig(level=logging.INFO)
-        server_address = ('', port)
         params['segment_makers'] = self.segment_makers
-        rtspd = RtspService(server_address, params)
-        # handler_class = make_handler(params)
-        # httpd = server_class(server_address, handler_class)
-        logging.info('Starting httpd...')
+        handler_class = make_handler(params)
+        rtsp_server = RtspService(('', ports[1]), params)
+        http_server = server_class(('', ports[0]), handler_class)
+        logging.info('Starting...')
         try:
-            rtspd.run()
-            #httpd.serve_forever()
+            rtsp_server.start()
+            http_server.serve_forever()
         except KeyboardInterrupt:
             pass
-        rtspd.close()
-        #httpd.server_close()
+        http_server.server_close()
+        rtsp_server.join()
         logging.info('Stopping')
 
 
@@ -177,27 +176,35 @@ def start(argv):
     try:
         opts, args = getopt.getopt(argv,
                                    "hp:r:s:cv",
-                                   ["help", "port=", "root=", "segment=", "cache", "verb"])
+                                   ["help", "ports=", "root=", "segment=", "cache", "verb"])
         if args:
             Service.print_options()
             sys.exit()
     except getopt.GetoptError as error:
         print(error)
         sys.exit()
-    port = 4555
+    ports = [4555, 4556]
     params = {}
-    for opt, arg in opts:
-        if opt in ('-h', '--help'):
-            Service.print_options()
-            sys.exit()
-        elif opt in ('-p', '--port'):
-            port = int(arg)
-        elif opt in ('-r', '--root'):
-            params['root'] = arg
-        elif opt in ('-s', '--segment'):
-            params['segment'] = float(arg)
-        elif opt in ('-c', '--cache'):
-            params['cache'] = True
-        elif opt in ('-v', '--verb'):
-            params['verb'] = True
-    Service().run(port, params)
+    try:
+        for opt, arg in opts:
+            if opt in ('-h', '--help'):
+                Service.print_options()
+                sys.exit()
+            elif opt in ('-p', '--ports'):
+                ports = [int(k) for k in arg.split(',')]
+                if len(ports) != 2:
+                    Service.print_options()
+                    sys.exit()
+            elif opt in ('-r', '--root'):
+                params['root'] = arg
+            elif opt in ('-s', '--segment'):
+                params['segment'] = float(arg)
+            elif opt in ('-c', '--cache'):
+                params['cache'] = True
+            elif opt in ('-v', '--verb'):
+                params['verb'] = True
+    except ValueError as error:
+        print(error)
+        Service.print_options()
+        sys.exit()
+    Service().run(ports, params)
