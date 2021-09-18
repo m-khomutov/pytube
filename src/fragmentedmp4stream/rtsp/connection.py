@@ -34,7 +34,6 @@ class Connection:
                 self._on_rtsp_directive(key.data)
                 key.data.inb = b''
                 return
-        print('closing connection to', key.data.addr, "- -", self._address)
         raise EOFError()
 
     def on_write_event(self, key):

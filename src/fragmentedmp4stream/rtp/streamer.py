@@ -70,33 +70,31 @@ class Streamer:
     """Streams media data in RTP interleaved protocol"""
     _last_frame_time_ms, _frame_duration_ms = 0, 0
     _duration_error = 0.
+    _rtp_header = None
 
-    def __init__(self, reader, verbal):
-        self._verbal = verbal
+    def __init__(self, track_id, payload_type):
+        self._track_id = track_id
+        self._payload_type = payload_type
         self._timestamp = random.randint(0, 0xffffffff)
-        self._reader = reader
-        if self._verbal:
-            logging.info(self._reader)
-        self._rtp_header = Header(96, 0, random.randint(0, 0xffffffff))
 
-    def next_frame(self):
+    def next_frame(self, reader, verbal):
         """Reads and returns next frame from mp4 file"""
         ret = b''
         current_time_ms = int(round(time.time() * 1000))
         if current_time_ms - self._last_frame_time_ms >= self._frame_duration_ms:
-            track_id = 1
-            timescale = self._reader.timescale[track_id]
-            sample = self._reader.next_sample(track_id)
-            if self._verbal:
-                print(str(sample))
+            timescale = reader.timescale[self._track_id]
+            sample = reader.next_sample(self._track_id)
+            if verbal:
+                logging.info(str(sample))
             for chunk in sample:
                 for marker, data_unit in FragmentMaker(chunk):
                     packet = self._rtp_header.to_bytes(marker,
                                                        self._timestamp,
                                                        len(data_unit)) + \
                            data_unit
-                    if self._verbal:
-                        print(' '.join(map(lambda x, p=packet: '{:02x}'.format(p[x]), range(19))))
+                    if verbal:
+                        print(' '.join(map(lambda x, p=packet: '{:02x}'.format(p[x]), range(19))) +
+                              ' of ' + str(len(packet)))
                     ret += packet
             self._frame_duration_ms = int(sample.duration * 1000 / timescale)
             self._duration_error += (sample.duration * 1000 / timescale) - self._frame_duration_ms
@@ -107,7 +105,8 @@ class Streamer:
             self._last_frame_time_ms = current_time_ms
         return ret
 
-    @property
-    def reader(self):
-        """Returns mp4 file reader"""
-        return self._reader
+    def set_transport(self, transport):
+        """Sets streamer stream transport"""
+        self._rtp_header = Header(self._payload_type,
+                                  int(transport.split('interleaved=')[-1].split('-')[0]),
+                                  random.randint(0, 0xffffffff))

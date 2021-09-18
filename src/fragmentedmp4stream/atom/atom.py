@@ -69,15 +69,12 @@ class Box:
 
     def init_from_file(self, file):
         """Virtual function for derived classes to initialize from file"""
-        pass
 
     def init_from_args(self, **kwargs):
         """Virtual function for derived classes to initialize from args"""
-        pass
 
     def _read_entry(self, file):
         """Virtual function to read an entry from file"""
-        pass
 
     def add_inner_box(self, box, parent_type=''):
         """Adds atom to inner boxes"""

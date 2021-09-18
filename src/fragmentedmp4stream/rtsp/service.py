@@ -41,6 +41,7 @@ class Service(threading.Thread):
                         selector.unregister(key.fileobj)
                         key.fileobj.close()
                         del self._connections[key.data.addr]
+                        print('connection to', key.data.addr, 'closed')
         accept_sock.close()
         selector.close()
 

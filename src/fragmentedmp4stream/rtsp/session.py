@@ -1,6 +1,7 @@
 """Network RTSP service session"""
 import random
 import string
+import logging
 from ..reader import Reader
 from ..rtp.streamer import Streamer as RtpStreamer
 
@@ -8,30 +9,32 @@ from ..rtp.streamer import Streamer as RtpStreamer
 class Session:
     """RTSP Session parameters"""
     _session_id = ''
-    _transport = {}
+    _streamers = {}
     _sdp = ''
-    _streamer = None
+    _reader = None
 
     def __init__(self, content_base, filename, verbal):
-        self._streamer = RtpStreamer(Reader(filename), verbal)
         self._content_base = content_base
-        for box in self._streamer.reader.find_box('stsd'):
+        self._reader = Reader(filename)
+        self._verbal = verbal
+        if self._verbal:
+            logging.info(self._reader)
+        for box in self._reader.find_box('trak'):
+            track_id = box.find_inner_boxes('tkhd')[0].track_id
+            box = box.find_inner_boxes('stsd')[0]
             if box.handler == 'vide':
-                self._sdp = self._make_video_sdp(box.entries)
+                self._sdp = self._make_video_sdp(track_id, box.entries)
             elif box.handler == 'soun':
-                self._sdp += self._make_audio_sdp(box.entries)
-
-    def __del__(self):
-        # self._streamer.join()
-        pass
+                self._sdp += self._make_audio_sdp(track_id, box.entries)
 
     def add_stream(self, headers):
         """Adds a controlled stream"""
         stream = int(headers[0].split()[1].split('/')[-1])
         transport = ''
-        if self._transport.get(stream) is not None:
+        streamer = self._streamers.get(stream, None)
+        if streamer is not None:
             transport = [k for k in headers if 'Transport: ' in k][0]
-            self._transport[stream] = transport
+            streamer.set_transport(transport)
         return transport
 
     def valid_request(self, headers):
@@ -42,7 +45,7 @@ class Session:
 
     def get_next_frame(self):
         """If time has come writes next media frame"""
-        return self._streamer.next_frame()
+        return self._streamers[1].next_frame(self._reader, self._verbal)
 
     @property
     def content_base(self):
@@ -62,7 +65,7 @@ class Session:
         """Returns Session Description Properties"""
         return self._sdp
 
-    def _make_video_sdp(self, stsd_boxes):
+    def _make_video_sdp(self, track_id, stsd_boxes):
         ret = ''
         if stsd_boxes:
             ret += 'm=video 0 RTP/AVP 96\r\n'
@@ -73,17 +76,17 @@ class Session:
                        '; sprop-parameter-sets=' + avc_box.sprop_parameter_sets + \
                        '; profile-level-id=' + \
                        avc_box.profile_level_id + '\r\n'
-            ret += 'a=control:0\r\n'
-            self._transport[0] = ''
+            ret += 'a=control:' + str(track_id) + '\r\n'
+            self._streamers[track_id] = RtpStreamer(track_id, 96)
         return ret
 
-    def _make_audio_sdp(self, stsd_boxes):
+    def _make_audio_sdp(self, track_id, stsd_boxes):
         ret = ''
         if stsd_boxes:
             print(str(stsd_boxes[0]))
             ret += 'm=audio 0 RTP/AVP 97\r\n' + \
                    'a=rtpmap:97 ' + stsd_boxes[0].rtpmap + '\r\n' + \
                    'a=fmtp:97 config=' + stsd_boxes[0].config + '\r\n' + \
-                   'a=control:1\r\n'
-            self._transport[1] = ''
+                   'a=control:' + str(track_id) + '\r\n'
+            self._streamers[track_id] = RtpStreamer(track_id, 97)
         return ret
