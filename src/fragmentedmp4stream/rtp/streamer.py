@@ -1,10 +1,25 @@
 """RTP interleaved protocol entities"""
+import abc
 import time
 import random
 import logging
 
 
-class Header:
+class AUHeaderSimpleSection:
+    """AUHeader according to rfc3640"""
+    def __init__(self, index, size):
+        self._value = ((size & 0x1fff) << 3) | (index & 7)
+
+    def to_bytes(self):
+        """Returns header as bytestream, ready to be sent to socket."""
+        return int(16).to_bytes(2, byteorder='big') + self._value.to_bytes(2, byteorder='big')
+
+    def size(self):
+        """Returns AUHeader size"""
+        return self._value >> 3
+
+
+class InterleavedHeader:
     """RTP (+interleaved) header according to rfc7826"""
     _first_byte = bytes([0x80])
     _sequence_number = 0
@@ -86,16 +101,7 @@ class Streamer:
             sample = reader.next_sample(self._track_id)
             if verbal:
                 logging.info(str(sample))
-            for chunk in sample:
-                for marker, data_unit in FragmentMaker(chunk):
-                    packet = self._rtp_header.to_bytes(marker,
-                                                       self._timestamp,
-                                                       len(data_unit)) + \
-                           data_unit
-                    if verbal:
-                        print(' '.join(map(lambda x, p=packet: '{:02x}'.format(p[x]), range(19))) +
-                              ' of ' + str(len(packet)))
-                    ret += packet
+            ret = self._frame_to_bytes(sample, verbal)
             self._frame_duration_ms = int(sample.duration * 1000 / timescale)
             self._duration_error += (sample.duration * 1000 / timescale) - self._frame_duration_ms
             if self._duration_error > 1:
@@ -107,6 +113,48 @@ class Streamer:
 
     def set_transport(self, transport):
         """Sets streamer stream transport"""
-        self._rtp_header = Header(self._payload_type,
-                                  int(transport.split('interleaved=')[-1].split('-')[0]),
-                                  random.randint(0, 0xffffffff))
+        self._rtp_header = \
+            InterleavedHeader(self._payload_type,
+                              int(transport.split('interleaved=')[-1].split('-')[0]),
+                              random.randint(0, 0xffffffff))
+
+    @abc.abstractmethod
+    def _frame_to_bytes(self, sample, verbal) -> bytes:
+        """Returns media sample as bytestream, ready to be sent to socket"""
+        return b''
+
+
+class VideoStreamer(Streamer):
+    """Streams video data in RTP interleaved protocol"""
+    def _frame_to_bytes(self, sample, verbal):
+        """Returns video sample as bytestream, ready to be sent to socket"""
+        ret = b''
+        for chunk in sample:
+            for marker, data_unit in FragmentMaker(chunk):
+                packet = self._rtp_header.to_bytes(marker,
+                                                   self._timestamp,
+                                                   len(data_unit)) + \
+                         data_unit
+                if verbal:
+                    print(' '.join(map(lambda x, p=packet: '{:02x}'.format(p[x]), range(19))) +
+                          ' of ' + str(len(packet)))
+                ret += packet
+        return ret
+
+
+class AudioStreamer(Streamer):
+    """Streams audio data in RTP interleaved protocol"""
+    def _frame_to_bytes(self, sample, verbal):
+        """Returns audio sample as bytestream, ready to be sent to socket"""
+        ret = b''
+        for chunk in sample:
+            header = AUHeaderSimpleSection(0, len(chunk)).to_bytes()
+            packet = self._rtp_header.to_bytes(1,
+                                               self._timestamp,
+                                               len(header) + len(chunk)) + \
+                header + chunk
+            if verbal:
+                print(' '.join(map(lambda x, p=packet: '{:02x}'.format(p[x]), range(20))) +
+                      ' of ' + str(len(packet)))
+            ret += packet
+        return ret

@@ -3,7 +3,7 @@ import random
 import string
 import logging
 from ..reader import Reader
-from ..rtp.streamer import Streamer as RtpStreamer
+from ..rtp.streamer import VideoStreamer, AudioStreamer
 
 
 class Session:
@@ -45,7 +45,13 @@ class Session:
 
     def get_next_frame(self):
         """If time has come writes next media frame"""
-        return self._streamers[1].next_frame(self._reader, self._verbal)
+        ret = b''
+        try:
+            for key in self._streamers:
+                ret += self._streamers[key].next_frame(self._reader, self._verbal)
+        except IndexError:
+            pass
+        return ret
 
     @property
     def content_base(self):
@@ -77,7 +83,7 @@ class Session:
                        '; profile-level-id=' + \
                        avc_box.profile_level_id + '\r\n'
             ret += 'a=control:' + str(track_id) + '\r\n'
-            self._streamers[track_id] = RtpStreamer(track_id, 96)
+            self._streamers[track_id] = VideoStreamer(track_id, 96)
         return ret
 
     def _make_audio_sdp(self, track_id, stsd_boxes):
@@ -86,7 +92,9 @@ class Session:
             print(str(stsd_boxes[0]))
             ret += 'm=audio 0 RTP/AVP 97\r\n' + \
                    'a=rtpmap:97 ' + stsd_boxes[0].rtpmap + '\r\n' + \
-                   'a=fmtp:97 config=' + stsd_boxes[0].config + '\r\n' + \
+                   'a=fmtp:97 profile-level-id=1;' \
+                   'mode=AAC-hbr;sizelength=13;indexlength=3;indexdeltalength=3;' \
+                   'config=' + stsd_boxes[0].config + '\r\n' + \
                    'a=control:' + str(track_id) + '\r\n'
-            self._streamers[track_id] = RtpStreamer(track_id, 97)
+            self._streamers[track_id] = AudioStreamer(track_id, 97)
         return ret
