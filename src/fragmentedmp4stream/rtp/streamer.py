@@ -83,32 +83,30 @@ class FragmentMaker:  # pylint: disable=too-few-public-methods
 
 class Streamer:
     """Streams media data in RTP interleaved protocol"""
-    _last_frame_time_ms, _frame_duration_ms = 0, 0
-    _duration_error = 0.
+    _last_frame_time_sec, _frame_duration_sec = 0., 0.
     _rtp_header = None
+    _decoding_time = random.randint(0, 0xffffffff)
 
     def __init__(self, track_id, payload_type):
         self._track_id = track_id
         self._payload_type = payload_type
-        self._timestamp = random.randint(0, 0xffffffff)
 
     def next_frame(self, reader, verbal):
         """Reads and returns next frame from mp4 file"""
         ret = b''
-        current_time_ms = int(round(time.time() * 1000))
-        if current_time_ms - self._last_frame_time_ms >= self._frame_duration_ms:
+        current_time = time.time()
+        if current_time - self._last_frame_time_sec >= self._frame_duration_sec:
             timescale = reader.timescale[self._track_id]
             sample = reader.next_sample(self._track_id)
             if verbal:
                 logging.info(str(sample))
-            ret = self._frame_to_bytes(sample, verbal)
-            self._frame_duration_ms = int(sample.duration * 1000 / timescale)
-            self._duration_error += (sample.duration * 1000 / timescale) - self._frame_duration_ms
-            if self._duration_error > 1:
-                self._frame_duration_ms += int(self._duration_error)
-                self._duration_error -= int(self._duration_error)
-            self._timestamp += self._frame_duration_ms
-            self._last_frame_time_ms = current_time_ms
+            self._frame_duration_sec = sample.duration / timescale[0]
+            composition_time = self._decoding_time
+            if sample.composition_time is not None:
+                composition_time += sample.composition_time * timescale[1]
+            ret = self._frame_to_bytes(sample, composition_time, verbal)
+            self._decoding_time += sample.duration * timescale[1]
+            self._last_frame_time_sec = current_time
         return ret
 
     def set_transport(self, transport):
@@ -119,20 +117,20 @@ class Streamer:
                               random.randint(0, 0xffffffff))
 
     @abc.abstractmethod
-    def _frame_to_bytes(self, sample, verbal) -> bytes:
+    def _frame_to_bytes(self, sample, composition_time, verbal) -> bytes:
         """Returns media sample as bytestream, ready to be sent to socket"""
         return b''
 
 
 class VideoStreamer(Streamer):
     """Streams video data in RTP interleaved protocol"""
-    def _frame_to_bytes(self, sample, verbal):
+    def _frame_to_bytes(self, sample, composition_time, verbal):
         """Returns video sample as bytestream, ready to be sent to socket"""
         ret = b''
         for chunk in sample:
             for marker, data_unit in FragmentMaker(chunk):
                 packet = self._rtp_header.to_bytes(marker,
-                                                   self._timestamp,
+                                                   composition_time,
                                                    len(data_unit)) + \
                          data_unit
                 if verbal:
@@ -144,13 +142,13 @@ class VideoStreamer(Streamer):
 
 class AudioStreamer(Streamer):
     """Streams audio data in RTP interleaved protocol"""
-    def _frame_to_bytes(self, sample, verbal):
+    def _frame_to_bytes(self, sample, composition_time, verbal):
         """Returns audio sample as bytestream, ready to be sent to socket"""
         ret = b''
         for chunk in sample:
             header = AUHeaderSimpleSection(0, len(chunk)).to_bytes()
             packet = self._rtp_header.to_bytes(1,
-                                               self._timestamp,
+                                               composition_time,
                                                len(header) + len(chunk)) + \
                 header + chunk
             if verbal:

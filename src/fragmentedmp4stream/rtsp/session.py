@@ -49,7 +49,7 @@ class Session:
         try:
             for key in self._streamers:
                 ret += self._streamers[key].next_frame(self._reader, self._verbal)
-        except IndexError:
+        except:  # noqa # pylint: disable=bare-except
             pass
         return ret
 
@@ -89,7 +89,6 @@ class Session:
     def _make_audio_sdp(self, track_id, stsd_boxes):
         ret = ''
         if stsd_boxes:
-            print(str(stsd_boxes[0]))
             ret += 'm=audio 0 RTP/AVP 97\r\n' + \
                    'a=rtpmap:97 ' + stsd_boxes[0].rtpmap + '\r\n' + \
                    'a=fmtp:97 profile-level-id=1;' \

@@ -30,8 +30,10 @@ class Frame:
         return self._data[self._chunk_offset-chunk_size:self._chunk_offset]
 
     def __str__(self):
-        return f'duration:{self.duration} offset:{self.offset} ' \
-               f'size:{self.size} composition_time:{self.composition_time}'
+        ret = f'duration:{self.duration} offset:{self.offset} size:{self.size}'
+        if self.composition_time:
+            ret += f' composition_time:{self.composition_time}'
+        return ret
 
     def __repr__(self):
         return self.__str__()

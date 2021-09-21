@@ -1,7 +1,13 @@
 """Reads MP4 format file"""
+from enum import IntEnum
 from .atom.atom import Box
 from .atom import stco, stsc, stsz, tkhd, mdhd, co64, stts, ctts, hdlr, stsd, trun
 from .atom import ftyp, vmhd, mvhd, smhd, dref  # noqa # pylint: disable=unused-import
+
+
+class ClockRate(IntEnum):
+    """Trick to declare a 90kHz video clock rate"""
+    VIDEO_Khz = 90000
 
 
 class SamplesStscInfo:
@@ -87,7 +93,7 @@ class SamplesCttsInfo:
         """Returns composition time of the current sample"""
         if self.entries:
             return self.entries[self.index[1]].offset
-        return 0
+        return None
 
     def next(self):
         """Iterates sample"""
@@ -239,12 +245,15 @@ class Reader:
     def _on_mdhd(self, box):
         """Manager Media header box"""
         if box.type == mdhd.atom_type():
-            self.timescale[self.track_id] = box.timescale
+            self.timescale[self.track_id] = [box.timescale, 1]
 
     def _on_hdlr(self, box):
         """Manager Handler box"""
         if box.type == hdlr.atom_type():
             self.hdlr = box.handler_type
+            if self.hdlr == 'vide':
+                self.timescale[self.track_id][1] = \
+                    int(ClockRate.VIDEO_Khz.value / self.timescale[self.track_id][0])
 
     def _on_stts(self, box):
         """Manager Sample Decoding Time box"""
