@@ -4,7 +4,6 @@
 from enum import IntEnum
 from functools import reduce
 import base64
-from bitstring import ConstBitStream
 from . import atom
 
 
@@ -49,11 +48,10 @@ class NetworkUnitHeader:
     """The Network Abstraction Layer header"""
     def __init__(self, frame):
         if len(frame) == 2:
-            bits = ConstBitStream(frame)
-            self.forbidden_zero_bit = bits.read('uint:1')
-            self.nal_unit_type = bits.read('uint:6')
-            self.nuh_layer_id = bits.read('uint:6')
-            self.nuh_temporal_id_plus1 = bits.read('uint:3')
+            self.forbidden_zero_bit = frame[0] >> 7
+            self.nal_unit_type = (frame[0] >> 1) & 0x3f
+            self.nuh_layer_id = ((frame[0] & 1) << 5) | (frame[1] >> 3) & 0x1f
+            self.nuh_temporal_id_plus1 = frame[1] & 7
         else:
             self.nal_unit_type = frame[0]
 
