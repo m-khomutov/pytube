@@ -20,7 +20,7 @@ class AUHeaderSimpleSection:
 
 
 class InterleavedHeader:
-    """RTP (+interleaved) header according to rfc7826"""
+    """RTP (+interleaved) header: rfc7826"""
     _first_byte = bytes([0x80])
     _sequence_number = 0
 
@@ -50,12 +50,10 @@ class InterleavedHeader:
 
 class FragmentMaker:  # pylint: disable=too-few-public-methods
     """Fragments data on Fragmented Units"""
-    def __init__(self, sample, chunk_size=1472):
+    def __init__(self, sample, offset, chunk_size=1472):
         self._sample = sample
-        self._offset = 1
+        self._offset = offset
         self._chunk_size = chunk_size
-        self._indicator = (sample[0] & 0xe0) | 28
-        self._header = 0x80 | (sample[0] & 0x1f)
 
     def __next__(self):
         if self._offset >= len(self._sample):
@@ -68,17 +66,67 @@ class FragmentMaker:  # pylint: disable=too-few-public-methods
         if self._offset + next_size >= len(self._sample):
             next_size = len(self._sample) - self._offset
             marker = 1
-            self._header = 0x40 | (self._header & 0x1f)
-        elif self._offset > 1:
-            self._header &= 0x1f
+            self._set_last()
+        elif self._offset > 2:
+            self._set_next()
         self._offset += next_size
-        return marker, \
-            self._indicator.to_bytes(1, 'big') + \
-            self._header.to_bytes(1, 'big') +\
-            self._sample[self._offset-next_size:self._offset]
+        return marker, self._to_bytes() + self._sample[self._offset-next_size:self._offset]
 
     def __iter__(self):
         return self
+
+    @abc.abstractmethod
+    def _set_next(self):
+        """Marks FU packet as not first"""
+
+    @abc.abstractmethod
+    def _set_last(self):
+        """Marks FU packet as last"""
+
+    @abc.abstractmethod
+    def _to_bytes(self):
+        """Returns FU header as bytestream, ready to be sent to socket."""
+
+
+class AvcFragmentMaker(FragmentMaker):  # pylint: disable=too-few-public-methods
+    """Fragments AVC data on Fragmented Units rfc6184"""
+    def __init__(self, sample, chunk_size=1472):
+        super().__init__(sample, 1, chunk_size)
+        self._indicator = (sample[0] & 0xe0) | 28
+        self._header = 0x80 | (sample[0] & 0x1f)
+
+    def _set_next(self):
+        """Marks AVC FU packet as not first"""
+        self._header &= 0x1f
+
+    def _set_last(self):
+        """Marks AVC FU packet as last"""
+        self._header = 0x40 | (self._header & 0x1f)
+
+    def _to_bytes(self):
+        """Returns AVC FU header as bytestream, ready to be sent to socket."""
+        return self._indicator.to_bytes(1, 'big') + self._header.to_bytes(1, 'big')
+
+
+class HevcFragmentMaker(FragmentMaker):  # pylint: disable=too-few-public-methods
+    """Fragments HEVC data on Fragmented Units rfc7798"""
+    def __init__(self, sample, chunk_size=1472):
+        super().__init__(sample, 2, chunk_size)
+        self._type = (sample[0] >> 1) & 0x3f
+        self._indicator = bytes([(sample[0] & 0x81) | (0x31 << 1), sample[1]])
+        self._header = 0x80 | self._type
+
+    def _set_next(self):
+        """Marks HEVC FU packet as not first"""
+        self._header = self._type
+
+    def _set_last(self):
+        """Marks HEVC FU packet as last"""
+        self._header = 0x40 | self._type
+
+    def _to_bytes(self):
+        """Returns HEVC FU header as bytestream, ready to be sent to socket."""
+        return self._indicator + self._header.to_bytes(1, 'big')
 
 
 class Streamer:
@@ -97,16 +145,28 @@ class Streamer:
         current_time = time.time()
         if current_time - self._last_frame_time_sec >= self._frame_duration_sec:
             timescale = reader.timescale[self._track_id]
+            timescale_multiplier = reader.samples_info[self._track_id].timescale_multiplier
             sample = reader.next_sample(self._track_id)
             if verbal:
                 logging.info(str(sample))
-            self._frame_duration_sec = sample.duration / timescale[0]
+            self._frame_duration_sec = sample.duration / timescale
             composition_time = self._decoding_time
             if sample.composition_time is not None:
-                composition_time += sample.composition_time * timescale[1]
+                composition_time += sample.composition_time * timescale_multiplier
             ret = self._frame_to_bytes(sample, composition_time, verbal)
-            self._decoding_time += sample.duration * timescale[1]
+            self._decoding_time += sample.duration * timescale_multiplier
             self._last_frame_time_sec = current_time
+        return ret
+
+    def to_bytes(self, marker, chunk, composition_time, verbal):
+        """Returns chunk as bytestream, ready to be sent to socket"""
+        ret = self._rtp_header.to_bytes(marker,
+                                        composition_time,
+                                        len(chunk)) + \
+            chunk
+        if verbal:
+            print(' '.join(map(lambda x, p=ret: '{:02x}'.format(p[x]), range(19))) +
+                  ' of ' + str(len(ret)))
         return ret
 
     def set_transport(self, transport):
@@ -122,21 +182,25 @@ class Streamer:
         return b''
 
 
-class VideoStreamer(Streamer):
+class AvcStreamer(Streamer):
     """Streams video data in RTP interleaved protocol"""
     def _frame_to_bytes(self, sample, composition_time, verbal):
         """Returns video sample as bytestream, ready to be sent to socket"""
         ret = b''
         for chunk in sample:
-            for marker, data_unit in FragmentMaker(chunk):
-                packet = self._rtp_header.to_bytes(marker,
-                                                   composition_time,
-                                                   len(data_unit)) + \
-                         data_unit
-                if verbal:
-                    print(' '.join(map(lambda x, p=packet: '{:02x}'.format(p[x]), range(19))) +
-                          ' of ' + str(len(packet)))
-                ret += packet
+            for marker, data_unit in AvcFragmentMaker(chunk):
+                ret += self.to_bytes(marker, data_unit, composition_time, verbal)
+        return ret
+
+
+class HevcStreamer(Streamer):
+    """Streams video data in RTP interleaved protocol"""
+    def _frame_to_bytes(self, sample, composition_time, verbal):
+        """Returns video sample as bytestream, ready to be sent to socket"""
+        ret = b''
+        for chunk in sample:
+            for marker, data_unit in HevcFragmentMaker(chunk):
+                ret += self.to_bytes(marker, data_unit, composition_time, verbal)
         return ret
 
 
@@ -146,13 +210,6 @@ class AudioStreamer(Streamer):
         """Returns audio sample as bytestream, ready to be sent to socket"""
         ret = b''
         for chunk in sample:
-            header = AUHeaderSimpleSection(0, len(chunk)).to_bytes()
-            packet = self._rtp_header.to_bytes(1,
-                                               composition_time,
-                                               len(header) + len(chunk)) + \
-                header + chunk
-            if verbal:
-                print(' '.join(map(lambda x, p=packet: '{:02x}'.format(p[x]), range(20))) +
-                      ' of ' + str(len(packet)))
-            ret += packet
+            data_unit = AUHeaderSimpleSection(0, len(chunk)).to_bytes() + chunk
+            ret += self.to_bytes(1, data_unit, composition_time, verbal)
         return ret

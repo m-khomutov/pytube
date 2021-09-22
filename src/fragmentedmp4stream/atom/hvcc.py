@@ -3,6 +3,7 @@
 """
 from enum import IntEnum
 from functools import reduce
+import base64
 from bitstring import ConstBitStream
 from . import atom
 
@@ -84,6 +85,7 @@ class ConfigSet:
         self.type = NetworkUnitHeader(file.read(1))
         count = int.from_bytes(file.read(2), 'big')
         self.sets = list(map(lambda x: self.read_configure_set(file), range(count)))
+        self.base64_set = base64.b64encode(self.sets[-1]).decode('ascii')
 
     @staticmethod
     def read_configure_set(file):
@@ -132,6 +134,11 @@ class Box(atom.Box):
                " frameRate:" + str(self.frame_rate) + "\n" + \
                "\n".join(' '*(self._depth*2) + str(k) for k in self.config_sets)
         return ret
+
+    @property
+    def unit_length(self):
+        """Returns length of avcC size field"""
+        return 4
 
     def init_from_file(self, file):
         self._read_some(file, 1)

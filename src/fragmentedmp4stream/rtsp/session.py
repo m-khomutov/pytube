@@ -3,7 +3,8 @@ import random
 import string
 import logging
 from ..reader import Reader
-from ..rtp.streamer import VideoStreamer, AudioStreamer
+from ..rtp.streamer import AvcStreamer, HevcStreamer, AudioStreamer
+from ..atom.hvcc import NetworkUnitType
 
 
 class Session:
@@ -77,14 +78,33 @@ class Session:
             ret += 'm=video 0 RTP/AVP 96\r\n'
             avc_box = stsd_boxes[0].inner_boxes.get('avcC')
             if avc_box is not None:
-                ret += 'a=rtpmap:96 H264/90000\r\n' + \
-                       'a=fmtp:96 packetization-mode=1' + \
-                       '; sprop-parameter-sets=' + avc_box.sprop_parameter_sets + \
-                       '; profile-level-id=' + \
-                       avc_box.profile_level_id + '\r\n'
-            ret += 'a=control:' + str(track_id) + '\r\n'
-            self._streamers[track_id] = VideoStreamer(track_id, 96)
+                ret += self._make_avc_sdp(track_id, avc_box)
+            else:
+                hevc_box = stsd_boxes[0].inner_boxes.get('hvcC')
+                if hevc_box is not None:
+                    ret += self._make_hevc_sdp(track_id, hevc_box)
         return ret
+
+    def _make_avc_sdp(self, track_id, avc_box):
+        self._streamers[track_id] = AvcStreamer(track_id, 96)
+        ret = 'a=rtpmap:96 H264/90000\r\n' + \
+              'a=fmtp:96 packetization-mode=1' + \
+              '; sprop-parameter-sets=' + avc_box.sprop_parameter_sets + \
+              '; profile-level-id=' + \
+              avc_box.profile_level_id + '\r\n'
+        return ret + 'a=control:' + str(track_id) + '\r\n'
+
+    def _make_hevc_sdp(self, track_id, hevc_box):
+        self._streamers[track_id] = HevcStreamer(track_id, 96)
+        ret = 'a=rtpmap:96 H265/90000\r\na=fmtp:96 '
+        for sprop_set in hevc_box.config_sets:
+            if sprop_set.type.nal_unit_type == NetworkUnitType.VPS_NUT:
+                ret += 'sprop-vps=' + sprop_set.base64_set + ';'
+            elif sprop_set.type.nal_unit_type == NetworkUnitType.SPS_NUT.value:
+                ret += 'sprop-sps=' + sprop_set.base64_set + ';'
+            elif sprop_set.type.nal_unit_type == NetworkUnitType.PPS_NUT.value:
+                ret += 'sprop-pps=' + sprop_set.base64_set + ';'
+        return ret.rstrip(';') + '\r\na=control:' + str(track_id) + '\r\n'
 
     def _make_audio_sdp(self, track_id, stsd_boxes):
         ret = ''

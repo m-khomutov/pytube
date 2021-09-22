@@ -16,8 +16,12 @@ if __name__ == "__main__":
 * h264
 * h265
 
+**protocol support**
+* http(fmp4, hls)
+* rtsp
+
 **parameters**
-* -p(--port) port to bind(def. *4555*)
+* -p(--ports) ports[http, rtsp] to bind(def. *4555*,*4556*)
 * -r(--root) files directory(required) - path to seek required mp4 file
 * -s(--segment) segment duration sec.(def. *6*) - floor limit of segment duration
 * -c(--cache) cache segmentation - save segmentation as .*.cache files
@@ -58,11 +62,13 @@ if __name__ == "__main__":
 
 **streams**
 * json list of available files
-  >`http://ip:port/`
+  >`http://ip:http_port/`
 * fragmented mp4
-  >`http://ip:port/filename_without_extension`
+  >`http://ip:http_port/filename_without_extension`
 * hls container with fragmented mp4
-  >`http://ip:port/filename_with_m3u_extension`
+  >`http://ip:http_port/filename_with_m3u_extension`
+* rtsp
+  >`rtsp://ip:rtsp_port/filename_without_extension`
 
 **example1**
 
@@ -92,7 +98,15 @@ if __name__ == "__main__":
 **example3**
 
 * service
-  * python3 mp4stream.py -r ~/video/`
+  * python3 mp4stream.py -r ~/video/
 * client
   * ffplay http://192.168.250.229:4555/toystory.m3u
     >`~/video/toystory20.mp4 - fragmented mp4 in hls container`
+
+**example4**
+
+* service
+  * python3 mp4stream.py -r ~/video/
+* client
+  * ffplay -rtsp_transport tcp rtsp://192.168.250.229:4556/toystory
+    >`~/video/toystory.mp4 - rtsp stream`

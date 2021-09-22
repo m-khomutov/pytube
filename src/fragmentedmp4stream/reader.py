@@ -107,6 +107,7 @@ class SamplesCttsInfo:
 class SamplesInfo:  # pylint: disable=too-many-instance-attributes
     """Composite information of sample atoms"""
     offset, size, unit_size_bytes = 0, 0, 0
+    timescale_multiplier = 1
 
     def __init__(self):
         self.stco = SamplesStcoInfo([])
@@ -245,15 +246,15 @@ class Reader:
     def _on_mdhd(self, box):
         """Manager Media header box"""
         if box.type == mdhd.atom_type():
-            self.timescale[self.track_id] = [box.timescale, 1]
+            self.timescale[self.track_id] = box.timescale
 
     def _on_hdlr(self, box):
         """Manager Handler box"""
         if box.type == hdlr.atom_type():
             self.hdlr = box.handler_type
             if self.hdlr == 'vide':
-                self.timescale[self.track_id][1] = \
-                    int(ClockRate.VIDEO_Khz.value / self.timescale[self.track_id][0])
+                self.samples_info[self.track_id].timescale_multiplier = \
+                    int(ClockRate.VIDEO_Khz.value / self.timescale[self.track_id])
 
     def _on_stts(self, box):
         """Manager Sample Decoding Time box"""

@@ -71,7 +71,7 @@ class SegmentMaker:
             trun_box = moof.find_inner_boxes('trun')
             for trun in trun_box:
                 for sample in trun.samples:
-                    mdat_box.append(self.reader.sample(sample.initial_offset, sample.fields[1]))
+                    mdat_box.append(self.reader.sample(sample.initial_offset, sample.size))
             ret += mdat_box.to_bytes()
         return ret
 
