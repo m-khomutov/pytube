@@ -163,7 +163,9 @@ class Box(FullBox):
             ret += self.data_offset.to_bytes(4, byteorder='big')
         if Flags.FIRST_SAMPLE_FLAGS in self.tr_flags:
             ret += self.first_sample_flags.to_bytes(4, byteorder='big')
-        return ret + reduce(lambda a, b: a + b, map(lambda x: x.to_bytes(), self.samples))
+        if self.samples:
+            ret += reduce(lambda a, b: a + b, map(lambda x: x.to_bytes(), self.samples))
+        return ret
 
     def init_from_file(self, file):
         self.samples = self._read_entries(file)

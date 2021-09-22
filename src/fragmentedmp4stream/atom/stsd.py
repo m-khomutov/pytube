@@ -175,6 +175,24 @@ class AudioSampleEntry(SampleEntry):
         return ret
 
 
+class HintSampleEntry(SampleEntry):
+    """The sample description table for hint tracks"""
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        file = kwargs.get("file", None)
+        if file is not None:
+            self._hint_data = self._read_some(file, self.size - 16)
+
+    def __repr__(self):
+        ret = super().__repr__() + \
+              ' '.join('{:02x}'.format(k) for k in self._hint_data)
+        return ret
+
+    def to_bytes(self):
+        return super().to_bytes() + self._hint_data
+
+
 class StyleRecord:
     """Style information for the text to override the default style in the
        sample description or to define more than one style for a sample
@@ -436,6 +454,8 @@ class Box(FullBox):
             return AudioSampleEntry(file=file, depth=self._depth+1)
         if self.handler == 'text':
             return TextSampleEntry(file=file, depth=self._depth+1)
+        if self.handler == 'hint':
+            return HintSampleEntry(file=file, depth=self._depth+1)
         return SampleEntry()
 
     def to_bytes(self):
