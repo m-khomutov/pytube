@@ -43,7 +43,8 @@ class Writer:
         """get moov atom from MP4 reader"""
         moov = Box(type='moov')
         moov.add_inner_box(self._reader.find_box('mvhd')[0])
-        self.track_stts_map = {}
+        self._stts_params = {}  # (track_id, hdlr, stts)
+        stts_params_key = 1
         for track in self._reader.find_box('trak'):
             track_box = Box(type='trak')
             tkhd = track.find_inner_boxes('tkhd')[0]
@@ -51,8 +52,15 @@ class Writer:
             track_box.add_inner_box(Box(type='mdia'))
             track_box.add_inner_box(track.find_inner_boxes('mdhd')[0], 'mdia')
             hdlr = track.find_inner_boxes('hdlr')[0]
-            self.track_stts_map[tkhd.track_id] = (hdlr.handler_type,
-                                                  track.find_inner_boxes('stts')[0])
+            if hdlr.handler_type == 'vide':  # should go first - to calculate chunk duration
+                self._stts_params[0] = (tkhd.track_id,
+                                        hdlr.handler_type,
+                                        track.find_inner_boxes('stts')[0])
+            elif hdlr.handler_type == 'soun' or hdlr.handler_type == 'text':
+                self._stts_params[stts_params_key] = (tkhd.track_id,
+                                                      hdlr.handler_type,
+                                                      track.find_inner_boxes('stts')[0])
+                stts_params_key += 1
             track_box.add_inner_box(hdlr, 'mdia')
             track_box.add_inner_box(Box(type='minf'), 'mdia')
             if hdlr.handler_type == 'vide':
@@ -74,7 +82,8 @@ class Writer:
             track_box.add_inner_box(stco.Box(), 'stbl')
             moov.add_inner_box(track_box)
         moov.add_inner_box(Box(type='mvex'))
-        for track_id in self.track_stts_map:
+        for key in sorted(self._stts_params.keys()):
+            track_id = self._stts_params[key][0]
             moov.add_inner_box(trex.Box(track_id=track_id), 'mvex')
         self.base_offset += moov.full_size()
         return moov.to_bytes()
@@ -89,22 +98,23 @@ class Writer:
             tfhd.Flags.DEFAULT_SAMPLE_FLAGS_PRESENT
         trun_boxes = {}
         mdat_size = {}
-        for track_id in self.track_stts_map:
+        for key in sorted(self._stts_params.keys()):
+            track_id, hdlr, stts_box = self._stts_params[key]
             traf_box = Box(type='traf')
             moof_box.add_inner_box(traf_box)
             sample_flags = trex.SampleFlags(1, True)
             tr_flags = trun.Flags.DATA_OFFSET | \
                 trun.Flags.FIRST_SAMPLE_FLAGS | \
                 trun.Flags.SAMPLE_SIZE
-            if self.track_stts_map[track_id][0] == 'vide':
+            if hdlr == 'vide':
                 if self._reader.has_composition_time(track_id):
                     tr_flags |= trun.Flags.SAMPLE_COMPOSITION_TIME_OFFSETS
-            elif self.track_stts_map[track_id][0] == 'soun':
+            elif hdlr == 'soun':
                 sample_flags = trex.SampleFlags(2, False)
                 tr_flags = trun.Flags.DATA_OFFSET | \
                     trun.Flags.SAMPLE_DURATION | \
                     trun.Flags.SAMPLE_SIZE
-            elif self.track_stts_map[track_id][0] == 'text':
+            elif hdlr == 'text':
                 tf_flags = tfhd.Flags.BASE_DATA_OFFSET_PRESENT
                 tr_flags = trun.Flags.DATA_OFFSET | \
                     trun.Flags.SAMPLE_SIZE | \
@@ -114,25 +124,24 @@ class Writer:
                 tfhd.Box(flags=tf_flags,
                          track_id=track_id,
                          data_offset=self.base_offset,
-                         default_sample_duration=self.track_stts_map[track_id][1].entries[0].delta,
+                         default_sample_duration=stts_box.entries[0].delta,
                          default_sample_flags=int(sample_flags))
             )
             first_sample_flags = trex.SampleFlags(2, False)
             trun_boxes[track_id] = trun.Box(flags=tr_flags,
                                             first_sample_flags=int(first_sample_flags))
             traf_box.add_inner_box(trun_boxes[track_id])
-            if self.track_stts_map[track_id][0] == 'vide':
-                mdat_size[track_id], duration = \
+            if hdlr == 'vide':
+                mdat_size[track_id], chunk_duration = \
                     self._set_video_chunk(track_id,
                                           trun_boxes[track_id],
                                           mdat_box)
-                chunk_duration = duration
-            elif self.track_stts_map[track_id][0] == 'soun':
+            elif hdlr == 'soun':
                 mdat_size[track_id] = self._set_audio_sample(track_id,
                                                              trun_boxes[track_id],
                                                              mdat_box,
                                                              chunk_duration)
-            else:
+            elif hdlr == 'text':
                 mdat_size[track_id] = self._set_text_sample(track_id,
                                                             trun_boxes[track_id],
                                                             mdat_box,
@@ -163,7 +172,7 @@ class Writer:
             try:
                 video_frame = self._reader.next_sample(track_id)
                 if len(video_frame.data) == video_frame.size:
-                    if self._keyframe(video_frame.data) and not fragment_mdat.empty():
+                    if self._keyframe(video_frame) and not fragment_mdat.empty():
                         self.first_video_frame = video_frame
                         chunk_duration /= self._reader.timescale[track_id]
                         break
@@ -224,8 +233,12 @@ class Writer:
         return size
 
     def _keyframe(self, frame):
-        if self._reader.video_stream_type == stsd.VideoCodecType.AVC:
-            return frame[4] & 0x1f != 1
-        if self._reader.video_stream_type == stsd.VideoCodecType.HEVC:
-            return hvcc.NetworkUnitHeader(frame[4:6]).keyframe()
+        for chunk in frame:
+            if self._reader.video_stream_type == stsd.VideoCodecType.AVC:
+                if chunk[0] & 0x1f == 5:
+                    return True
+                elif chunk[0] & 0x1f == 1:
+                    return False
+            if self._reader.video_stream_type == stsd.VideoCodecType.HEVC:
+                return hvcc.NetworkUnitHeader(chunk[:2]).keyframe()
         raise TypeError

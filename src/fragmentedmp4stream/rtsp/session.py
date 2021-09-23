@@ -24,7 +24,7 @@ class Session:
             track_id = box.find_inner_boxes('tkhd')[0].track_id
             box = box.find_inner_boxes('stsd')[0]
             if box.handler == 'vide':
-                self._sdp = self._make_video_sdp(track_id, box.entries)
+                self._sdp += self._make_video_sdp(track_id, box.entries)
             elif box.handler == 'soun':
                 self._sdp += self._make_audio_sdp(track_id, box.entries)
 
