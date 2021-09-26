@@ -142,6 +142,8 @@ class Streamer:
     def next_frame(self, reader, verbal):
         """Reads and returns next frame from mp4 file"""
         ret = b''
+        if self._rtp_header is None:
+            return ret
         current_time = time.time()
         if current_time - self._last_frame_time_sec >= self._frame_duration_sec:
             timescale = reader.timescale[self._track_id]

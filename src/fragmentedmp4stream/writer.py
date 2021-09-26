@@ -190,6 +190,8 @@ class Writer:
                 chunk_duration /= self._reader.timescale[track_id]
                 self.last_chunk = True
                 break
+            except TypeError:
+                pass
         return chunk_size, chunk_duration
 
     def _set_audio_sample(self, track_id, trun_box, fragment_mdat, chunk_duration):
@@ -237,7 +239,7 @@ class Writer:
             if self._reader.video_stream_type == stsd.VideoCodecType.AVC:
                 if chunk[0] & 0x1f == 5:
                     return True
-                elif chunk[0] & 0x1f == 1:
+                if chunk[0] & 0x1f == 1:
                     return False
             if self._reader.video_stream_type == stsd.VideoCodecType.HEVC:
                 return hvcc.NetworkUnitHeader(chunk[:2]).keyframe()
