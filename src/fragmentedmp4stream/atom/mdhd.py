@@ -27,6 +27,11 @@ class Box(FullBox):
               f' duration:{self.duration}' \
               f' language:{self.language}'
 
+    @property
+    def media_duration_sec(self):
+        """Returns media duration in seconds"""
+        return self.duration / self.timescale
+
     def init_from_file(self, file):
         if self.version == 1:
             self.creation_time = int.from_bytes(self._read_some(file, 8), "big")

@@ -30,9 +30,9 @@ class InterleavedHeader:
         self._synchro_source = synchro_source.to_bytes(4, 'big')
 
     @property
-    def synchronization_source(self):
-        """Returns synchronization source identifier"""
-        return self._synchro_source
+    def sequence_number(self):
+        """Returns sequence number of a frame"""
+        return self._sequence_number
 
     def to_bytes(self, marker, timestamp, data_size):
         """Returns the header as bytestream, ready to be sent to socket.
@@ -135,9 +135,10 @@ class Streamer:
     _rtp_header = None
     _decoding_time = random.randint(0, 0xffffffff)
 
-    def __init__(self, track_id, payload_type):
+    def __init__(self, track_id, payload_type, param_sets=()):
         self._track_id = track_id
         self._payload_type = payload_type
+        self.param_sets = param_sets
 
     def next_frame(self, reader, verbal):
         """Reads and returns next frame from mp4 file"""
@@ -146,7 +147,7 @@ class Streamer:
             return ret
         current_time = time.time()
         if current_time - self._last_frame_time_sec >= self._frame_duration_sec:
-            timescale = reader.timescale[self._track_id]
+            timescale = reader.media_header[self._track_id].timescale
             timescale_multiplier = reader.samples_info[self._track_id].timescale_multiplier
             sample = reader.next_sample(self._track_id)
             if verbal:
@@ -177,6 +178,12 @@ class Streamer:
             InterleavedHeader(self._payload_type,
                               int(transport.split('interleaved=')[-1].split('-')[0]),
                               random.randint(0, 0xffffffff))
+
+    def is_nth_frame_in_group(self, group_size):
+        """Returns frame number in a group of frames"""
+        if self._rtp_header is not None:
+            return self._rtp_header.sequence_number % group_size
+        raise UnboundLocalError('Transport is None')
 
     @abc.abstractmethod
     def _frame_to_bytes(self, sample, composition_time, verbal) -> bytes:

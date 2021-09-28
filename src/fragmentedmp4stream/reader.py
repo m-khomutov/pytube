@@ -161,17 +161,19 @@ class SamplesInfo:  # pylint: disable=too-many-instance-attributes
 
 class Reader:
     """Reads atom from MP4 format file"""
+    media_duration_sec = 0.
+
     def __init__(self, filename):
         self.boxes = []
         self.samples_info = {}
-        self.timescale = {}
-        self.track_id = 1
+        self.media_header = {}
         self.video_stream_type = stsd.VideoCodecType.UNKNOWN
-        self.hdlr = ''
         self.file = open(filename, "rb")
         try:
+            track_id, handler = 1, ''
             while True:
-                self.boxes.append(self._get_next_box(0))
+                box, track_id, handler = self._get_next_box(0, track_id, handler)
+                self.boxes.append(box)
         except EOFError:
             pass
 
@@ -211,88 +213,99 @@ class Reader:
         """Checks if sample has composition time"""
         return len(self.samples_info[track_id].ctts.entries) > 0
 
-    def _get_next_box(self, depth):
+    def _get_next_box(self, depth, track_id, handler):
         """Reads a box from file"""
         box = Box(file=self.file, depth=depth)
         if not box.container():
             module = globals().get(box.type)
             if module is not None:
                 self.file.seek(box.position)
-                box = self._get_info_box(module, depth)
+                box, track_id, handler = self._get_info_box(module, depth, track_id, handler)
             self.file.seek(box.position + box.size)
         else:
             box_size = box.size - (self.file.tell() - box.position)
             while box_size > 0:
-                next_box = self._get_next_box(box.indent + 1)
+                next_box, track_id, handler = self._get_next_box(box.indent + 1, track_id, handler)
                 box_size -= next_box.size
                 box.add_inner_box(next_box)
-        return box
+        return box, track_id, handler
 
-    def _get_info_box(self, module, depth):
+    def _get_info_box(self, module, depth, track_id, handler):
         """Reads no container box from file"""
-        box = getattr(module, 'Box')(file=self.file, depth=depth, hdlr=self.hdlr)
+        box = getattr(module, 'Box')(file=self.file, depth=depth, hdlr=handler)
         try:
-            getattr(self, f'_on_{box.type}')(box)
+            track_id, handler = getattr(self, f'_on_{box.type}')(box, track_id, handler)
         except AttributeError:
             pass
-        return box
+        return box, track_id, handler
 
-    def _on_tkhd(self, box):
+    def _on_tkhd(self, box, track_id, handler):
         """Manager Track header box"""
         if box.type == tkhd.atom_type():
-            self.track_id = box.track_id
-            self.samples_info[self.track_id] = SamplesInfo()
+            track_id = box.track_id
+            self.samples_info[track_id] = SamplesInfo()
+        return track_id, handler
 
-    def _on_mdhd(self, box):
+    def _on_mdhd(self, box, track_id, handler):
         """Manager Media header box"""
         if box.type == mdhd.atom_type():
-            self.timescale[self.track_id] = box.timescale
+            self.media_header[track_id] = box
+        return track_id, handler
 
-    def _on_hdlr(self, box):
+    def _on_hdlr(self, box, track_id, handler):
         """Manager Handler box"""
         if box.type == hdlr.atom_type():
-            self.hdlr = box.handler_type
-            if self.hdlr == 'vide':
-                self.samples_info[self.track_id].timescale_multiplier = \
-                    int(ClockRate.VIDEO_Khz.value / self.timescale[self.track_id])
+            handler = box.handler_type
+            if handler == 'vide':
+                self.samples_info[track_id].timescale_multiplier = \
+                    int(ClockRate.VIDEO_Khz.value / self.media_header[track_id].timescale)
+                self.media_duration_sec = self.media_header[track_id].media_duration_sec
+        return track_id, handler
 
-    def _on_stts(self, box):
+    def _on_stts(self, box, track_id, handler):
         """Manager Sample Decoding Time box"""
         if box.type == stts.atom_type():
-            self.samples_info[self.track_id].fill_decoding_time_info(box.entries)
+            self.samples_info[track_id].fill_decoding_time_info(box.entries)
+        return track_id, handler
 
-    def _on_ctts(self, box):
+    def _on_ctts(self, box, track_id, handler):
         """Manager Sample Composition Time box"""
         if box.type == ctts.atom_type():
-            self.samples_info[self.track_id].fill_composition_time_info(box.entries)
+            self.samples_info[track_id].fill_composition_time_info(box.entries)
+        return track_id, handler
 
-    def _on_stsd(self, box):
+    def _on_stsd(self, box, track_id, handler):
         """Manager Sample Descriptions box"""
         if box.type == stsd.atom_type():
-            if self.hdlr == 'vide':
+            if handler == 'vide':
                 self.video_stream_type = box.video_stream_type
-                self.samples_info[self.track_id].unit_size_bytes = \
+                self.samples_info[track_id].unit_size_bytes = \
                     box.video_configuration_box().unit_length
+        return track_id, handler
 
-    def _on_stsz(self, box):
+    def _on_stsz(self, box, track_id, handler):
         """Manager Sample Sizes box"""
         if box.type == stsz.atom_type():
             if box.sample_size == 0:
-                self.samples_info[self.track_id].fill_sample_sizes_info(box.entries)
+                self.samples_info[track_id].fill_sample_sizes_info(box.entries)
             else:
-                self.samples_info[self.track_id].fill_sample_sizes_info([box.sample_size])
+                self.samples_info[track_id].fill_sample_sizes_info([box.sample_size])
+        return track_id, handler
 
-    def _on_stsc(self, box):
+    def _on_stsc(self, box, track_id, handler):
         """Manager Sample Chunk box"""
         if box.type == stsc.atom_type():
-            self.samples_info[self.track_id].fill_sample_chunk_info(box.entries)
+            self.samples_info[track_id].fill_sample_chunk_info(box.entries)
+        return track_id, handler
 
-    def _on_stco(self, box):
+    def _on_stco(self, box, track_id, handler):
         """Manager Sample Chunk Offsets box"""
         if box.type == stco.atom_type():
-            self.samples_info[self.track_id].fill_chunk_offset_info(box.entries)
+            self.samples_info[track_id].fill_chunk_offset_info(box.entries)
+        return track_id, handler
 
-    def _on_co64(self, box):
+    def _on_co64(self, box, track_id, handler):
         """Manager Sample Chunk 64bit Offsets box"""
         if box.type == co64.atom_type():
-            self.samples_info[self.track_id].fill_chunk_offset_info(box.entries)
+            self.samples_info[track_id].fill_chunk_offset_info(box.entries)
+        return track_id, handler

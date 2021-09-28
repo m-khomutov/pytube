@@ -2,6 +2,7 @@
 import random
 import string
 import logging
+from datetime import datetime
 from ..reader import Reader
 from ..rtp.streamer import AvcStreamer, HevcStreamer, AudioStreamer
 from ..atom.hvcc import NetworkUnitType
@@ -54,6 +55,20 @@ class Session:
             pass
         return ret
 
+    def normal_play_time(self):
+        """Returns media duration in NPT format"""
+        return 'npt=-' + str(self.duration) + '\r\n'
+
+    def absolute_time(self):
+        """Returns media duration in Clock format"""
+        abs_time = (datetime.now().timestamp() - int(self.duration) - 1,
+                    datetime.now().timestamp() - 1)
+        fraction = int((self.duration - int(self.duration)) * 1000)
+        return 'clock=' + \
+               datetime.fromtimestamp(abs_time[0]).strftime('%Y%m%dT%H%M%SZ-') + \
+               datetime.fromtimestamp(abs_time[1]).strftime('%Y%m%dT%H%M%S.') + \
+               str(fraction) + 'Z\r\n'
+
     @property
     def content_base(self):
         """Returns content base URL"""
@@ -72,6 +87,11 @@ class Session:
         """Returns Session Description Properties"""
         return self._sdp
 
+    @property
+    def duration(self):
+        """Returns video duration"""
+        return self._reader.media_duration_sec
+
     def _make_video_sdp(self, track_id, stsd_boxes):
         ret = ''
         if stsd_boxes:
@@ -86,12 +106,13 @@ class Session:
         return ret
 
     def _make_avc_sdp(self, track_id, avc_box):
-        self._streamers[track_id] = AvcStreamer(track_id, 96)
+        self._streamers[track_id] = AvcStreamer(track_id, 96, (avc_box.sps, avc_box.pps))
         ret = 'a=rtpmap:96 H264/90000\r\n' + \
               'a=fmtp:96 packetization-mode=1' + \
               '; sprop-parameter-sets=' + avc_box.sprop_parameter_sets + \
               '; profile-level-id=' + \
-              avc_box.profile_level_id + '\r\n'
+              avc_box.profile_level_id + '\r\n' + \
+              'a=range:' + self.absolute_time()
         return ret + 'a=control:' + str(track_id) + '\r\n'
 
     def _make_hevc_sdp(self, track_id, hevc_box):

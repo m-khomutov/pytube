@@ -53,17 +53,25 @@ class Connection:
             headers = directive.split('\r\n')
             if headers[0][:8] == 'OPTIONS ':
                 self._on_options(headers, data)
-                return
-            if headers[0][:9] == "DESCRIBE ":
+            elif headers[0][:9] == "DESCRIBE ":
                 self._on_describe(headers, data)
-                return
-            if headers[0][:6] == "SETUP ":
+            elif headers[0][:9] == "ANNOUNCE ":
+                self._on_announce(headers, data)
+            elif headers[0][:14] == "GET_PARAMETER ":
+                self._on_get_parameter(headers, data)
+            elif headers[0][:14] == "SET_PARAMETER ":
+                self._on_set_parameter(headers, data)
+            elif headers[0][:6] == "SETUP ":
                 self._on_setup(headers, data)
-                return
-            if headers[0][:5] == "PLAY ":
+            elif headers[0][:5] == "PLAY ":
                 self._on_play(headers, data)
-                return
-            if headers[0][:9] == "TEARDOWN ":
+            elif headers[0][:6] == "PAUSE ":
+                self._on_pause(headers, data)
+            elif headers[0][:7] == "RECORD ":
+                self._on_record(headers, data)
+            elif headers[0][:9] == "REDIRECT ":
+                self._on_redirect(headers, data)
+            elif headers[0][:9] == "TEARDOWN ":
                 self._on_teardown(headers, data)
         except:  # noqa # pylint: disable=bare-except
             data.outb = str.encode('RTSP/1.0 400 Bad Request\r\n') + \
@@ -97,6 +105,18 @@ class Connection:
             str.encode('Content-Length: ' + str(len(sdp)) + '\r\n\r\n') + \
             str.encode(sdp)
 
+    def _on_announce(self, headers, data):
+        """Manager ANNOUNCE RTSP directive"""
+        pass
+
+    def _on_get_parameter(self, headers, data):
+        """Manager GET_PARAMETER RTSP directive"""
+        pass
+
+    def _on_set_parameter(self, headers, data):
+        """Manager GET_PARAMETER RTSP directive"""
+        pass
+
     def _on_setup(self, headers, data):
         """Manager SETUP RTSP directive"""
         transport = self._session.add_stream(headers)
@@ -112,6 +132,8 @@ class Connection:
         if self._session.valid_request(headers):
             data.outb = str.encode('RTSP/1.0 200 OK\r\n') + \
                 self._sequence_number(headers) + \
+                str.encode('Range: ' +
+                           self._session.absolute_time()) + \
                 self._datetime() + \
                 self._session.identification + \
                 str.encode('\r\n')
@@ -120,6 +142,18 @@ class Connection:
         data.outb = str.encode('RTSP/1.0 406 Not Acceptable\r\n') + \
             self._sequence_number(headers) + \
             str.encode('\r\n')
+
+    def _on_pause(self, headers, data):
+        """Manager PAUSE RTSP directive"""
+        pass
+
+    def _on_record(self, headers, data):
+        """Manager RECORD RTSP directive"""
+        pass
+
+    def _on_redirect(self, headers, data):
+        """Manager REDIRECT RTSP directive"""
+        pass
 
     def _on_teardown(self, headers, data):
         """Manager TEARDOWN RTSP directive"""
