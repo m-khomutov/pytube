@@ -127,9 +127,8 @@ class Writer:
                          default_sample_duration=stts_box.entries[0].delta,
                          default_sample_flags=int(sample_flags))
             )
-            first_sample_flags = trex.SampleFlags(2, False)
             trun_boxes[track_id] = trun.Box(flags=tr_flags,
-                                            first_sample_flags=int(first_sample_flags))
+                                            first_sample_flags=int(trex.SampleFlags(2, False)))
             traf_box.add_inner_box(trun_boxes[track_id])
             if hdlr == 'vide':
                 mdat_size[track_id], chunk_duration = \
@@ -174,7 +173,7 @@ class Writer:
                 if len(video_frame.data) == video_frame.size:
                     if self._keyframe(video_frame) and not fragment_mdat.empty():
                         self.first_video_frame = video_frame
-                        chunk_duration /= self._reader.timescale[track_id]
+                        chunk_duration /= self._reader.media_header[track_id].timescale
                         break
                     if video_frame.composition_time is not None:
                         trun_box.add_sample(size=video_frame.size,
@@ -187,7 +186,7 @@ class Writer:
                     chunk_duration += video_frame.duration
                     chunk_size += video_frame.size
             except IndexError:
-                chunk_duration /= self._reader.timescale[track_id]
+                chunk_duration /= self._reader.media_header[track_id].timescale
                 self.last_chunk = True
                 break
             except TypeError:
@@ -201,7 +200,7 @@ class Writer:
             try:
                 sample = self._reader.next_sample(track_id)
                 if not self.last_chunk:
-                    duration += sample.duration / self._reader.timescale[track_id]
+                    duration += sample.duration / self._reader.media_header[track_id].timescale
                 trun_box.add_sample(size=sample.size,
                                     duration=sample.duration,
                                     initial_offset=sample.offset)
@@ -218,7 +217,7 @@ class Writer:
             try:
                 sample = self._reader.next_sample(track_id)
                 if not self.last_chunk:
-                    duration += sample.duration / self._reader.timescale[track_id]
+                    duration += sample.duration / self._reader.media_header[track_id].timescale
                 trun_box.add_sample(size=sample.size,
                                     duration=sample.duration,
                                     initial_offset=sample.offset)
@@ -227,7 +226,7 @@ class Writer:
             except IndexError:
                 trun_box.add_sample(
                     size=2,
-                    duration=int(chunk_duration * self._reader.timescale[track_id])
+                    duration=int(chunk_duration * self._reader.media_header[track_id].timescale)
                 )
                 fragment_mdat.append(int(0).to_bytes(2, 'big'))
                 size = 2

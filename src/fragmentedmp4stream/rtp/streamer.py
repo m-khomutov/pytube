@@ -132,26 +132,26 @@ class HevcFragmentMaker(FragmentMaker):  # pylint: disable=too-few-public-method
 class Streamer:
     """Streams media data in RTP interleaved protocol"""
     _last_frame_time_sec, _frame_duration_sec = 0., 0.
+    _position = 0.
     _rtp_header = None
     _decoding_time = random.randint(0, 0xffffffff)
 
-    def __init__(self, track_id, payload_type, param_sets=()):
-        self._track_id = track_id
+    def __init__(self, payload_type):
         self._payload_type = payload_type
-        self.param_sets = param_sets
 
-    def next_frame(self, reader, verbal):
+    def next_frame(self, reader, track_id, verbal):
         """Reads and returns next frame from mp4 file"""
         ret = b''
         if self._rtp_header is None:
             return ret
         current_time = time.time()
         if current_time - self._last_frame_time_sec >= self._frame_duration_sec:
-            timescale = reader.media_header[self._track_id].timescale
-            timescale_multiplier = reader.samples_info[self._track_id].timescale_multiplier
-            sample = reader.next_sample(self._track_id)
+            timescale = reader.media_header[track_id].timescale
+            timescale_multiplier = reader.samples_info[track_id].timescale_multiplier
+            sample = reader.next_sample(track_id)
             if verbal:
                 logging.info(str(sample))
+            self._position += self._frame_duration_sec
             self._frame_duration_sec = sample.duration / timescale
             composition_time = self._decoding_time
             if sample.composition_time is not None:
@@ -185,6 +185,11 @@ class Streamer:
             return self._rtp_header.sequence_number % group_size
         raise UnboundLocalError('Transport is None')
 
+    @property
+    def position(self):
+        """Returns current position as duration of all written frames"""
+        return self._position
+
     @abc.abstractmethod
     def _frame_to_bytes(self, sample, composition_time, verbal) -> bytes:
         """Returns media sample as bytestream, ready to be sent to socket"""
@@ -193,6 +198,10 @@ class Streamer:
 
 class AvcStreamer(Streamer):
     """Streams video data in RTP interleaved protocol"""
+    def __init__(self, payload_type, param_sets=()):
+        super().__init__(payload_type)
+        self.param_sets = param_sets
+
     def _frame_to_bytes(self, sample, composition_time, verbal):
         """Returns video sample as bytestream, ready to be sent to socket"""
         ret = b''
@@ -204,6 +213,10 @@ class AvcStreamer(Streamer):
 
 class HevcStreamer(Streamer):
     """Streams video data in RTP interleaved protocol"""
+    def __init__(self, payload_type, param_sets=()):
+        super().__init__(payload_type)
+        self.param_sets = param_sets
+
     def _frame_to_bytes(self, sample, composition_time, verbal):
         """Returns video sample as bytestream, ready to be sent to socket"""
         ret = b''

@@ -110,8 +110,15 @@ class Connection:
         pass
 
     def _on_get_parameter(self, headers, data):
-        """Manager GET_PARAMETER RTSP directive"""
-        pass
+        """Manages GET_PARAMETER RTSP directive"""
+        data.outb = str.encode('RTSP/1.0 200 OK\r\n') + \
+                    self._sequence_number(headers) + \
+                    self._session.identification + \
+                    self._datetime()
+        if headers[-1] == 'position':
+            data.outb += str.encode('Range: ' +
+                                    self._session.position_absolute_time())
+        data.outb += str.encode('\r\n')
 
     def _on_set_parameter(self, headers, data):
         """Manager GET_PARAMETER RTSP directive"""
@@ -124,8 +131,7 @@ class Connection:
             self._sequence_number(headers) + \
             self._datetime() + \
             self._session.identification + \
-            str.encode(transport + '\r\n') + \
-            str.encode('\r\n')
+            str.encode(transport + '\r\n\r\n')
 
     def _on_play(self, headers, data):
         """Manager PLAY RTSP directive"""
@@ -133,7 +139,7 @@ class Connection:
             data.outb = str.encode('RTSP/1.0 200 OK\r\n') + \
                 self._sequence_number(headers) + \
                 str.encode('Range: ' +
-                           self._session.absolute_time()) + \
+                           self._session.range_as_absolute_time()) + \
                 self._datetime() + \
                 self._session.identification + \
                 str.encode('\r\n')

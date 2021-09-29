@@ -13,12 +13,13 @@ class Session:
     _session_id = ''
     _streamers = {}
     _sdp = ''
-    _reader = None
 
     def __init__(self, content_base, filename, verbal):
         self._content_base = content_base
         self._reader = Reader(filename)
         self._verbal = verbal
+        self._range = (datetime.now().timestamp() - int(self.duration) - 1,
+                       datetime.now().timestamp() - 1)
         if self._verbal:
             logging.info(self._reader)
         for box in self._reader.find_box('trak'):
@@ -50,7 +51,7 @@ class Session:
         ret = b''
         try:
             for key in self._streamers:
-                ret += self._streamers[key].next_frame(self._reader, self._verbal)
+                ret += self._streamers[key].next_frame(self._reader, key, self._verbal)
         except:  # noqa # pylint: disable=bare-except
             pass
         return ret
@@ -59,15 +60,23 @@ class Session:
         """Returns media duration in NPT format"""
         return 'npt=-' + str(self.duration) + '\r\n'
 
-    def absolute_time(self):
+    def range_as_absolute_time(self):
         """Returns media duration in Clock format"""
-        abs_time = (datetime.now().timestamp() - int(self.duration) - 1,
-                    datetime.now().timestamp() - 1)
         fraction = int((self.duration - int(self.duration)) * 1000)
         return 'clock=' + \
-               datetime.fromtimestamp(abs_time[0]).strftime('%Y%m%dT%H%M%SZ-') + \
-               datetime.fromtimestamp(abs_time[1]).strftime('%Y%m%dT%H%M%S.') + \
+               datetime.fromtimestamp(self._range[0]).strftime('%Y%m%dT%H%M%SZ-') + \
+               datetime.fromtimestamp(self._range[1]).strftime('%Y%m%dT%H%M%S.') + \
                str(fraction) + 'Z\r\n'
+
+    def position_absolute_time(self):
+        """Returns current position in Clock format"""
+        position = self._range[0]
+
+        for key in (k for k in self._streamers if isinstance(self._streamers[k], AvcStreamer)):
+            position += self._streamers[key].position
+            break
+        return 'clock=' + \
+               datetime.fromtimestamp(position).strftime('%Y%m%dT%H%M%SZ-\r\n')
 
     @property
     def content_base(self):
@@ -106,17 +115,17 @@ class Session:
         return ret
 
     def _make_avc_sdp(self, track_id, avc_box):
-        self._streamers[track_id] = AvcStreamer(track_id, 96, (avc_box.sps, avc_box.pps))
+        self._streamers[track_id] = AvcStreamer(96, (avc_box.sps, avc_box.pps))
         ret = 'a=rtpmap:96 H264/90000\r\n' + \
               'a=fmtp:96 packetization-mode=1' + \
               '; sprop-parameter-sets=' + avc_box.sprop_parameter_sets + \
               '; profile-level-id=' + \
               avc_box.profile_level_id + '\r\n' + \
-              'a=range:' + self.absolute_time()
+              'a=range:' + self.range_as_absolute_time()
         return ret + 'a=control:' + str(track_id) + '\r\n'
 
     def _make_hevc_sdp(self, track_id, hevc_box):
-        self._streamers[track_id] = HevcStreamer(track_id, 96)
+        self._streamers[track_id] = HevcStreamer(96)
         ret = 'a=rtpmap:96 H265/90000\r\na=fmtp:96 '
         for sprop_set in hevc_box.config_sets:
             if sprop_set.type.nal_unit_type == NetworkUnitType.VPS_NUT:
@@ -136,5 +145,5 @@ class Session:
                    'mode=AAC-hbr;sizelength=13;indexlength=3;indexdeltalength=3;' \
                    'config=' + stsd_boxes[0].config + '\r\n' + \
                    'a=control:' + str(track_id) + '\r\n'
-            self._streamers[track_id] = AudioStreamer(track_id, 97)
+            self._streamers[track_id] = AudioStreamer(97)
         return ret
