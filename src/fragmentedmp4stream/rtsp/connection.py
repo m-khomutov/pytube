@@ -126,28 +126,29 @@ class Connection:
 
     def _on_setup(self, headers, data):
         """Manager SETUP RTSP directive"""
-        transport = self._session.add_stream(headers)
-        data.outb = str.encode('RTSP/1.0 200 OK\r\n') + \
-            self._sequence_number(headers) + \
-            self._datetime() + \
-            self._session.identification + \
-            str.encode(transport + '\r\n\r\n')
+        if [k for k in headers if 'Session: ' in k] and \
+                not self._session.valid_session(headers):
+            self._on_session_error(data, headers)
+        else:
+            transport = self._session.add_stream(headers)
+            data.outb = str.encode('RTSP/1.0 200 OK\r\n') + \
+                self._sequence_number(headers) + \
+                self._datetime() + \
+                self._session.identification + \
+                str.encode(transport + '\r\n\r\n')
 
     def _on_play(self, headers, data):
         """Manager PLAY RTSP directive"""
         if self._session.valid_request(headers):
             data.outb = str.encode('RTSP/1.0 200 OK\r\n') + \
                 self._sequence_number(headers) + \
-                str.encode('Range: ' +
-                           self._session.range_as_absolute_time()) + \
+                str.encode(self._session.set_play_range(headers)) + \
                 self._datetime() + \
                 self._session.identification + \
                 str.encode('\r\n')
             self._playing = True
-            return
-        data.outb = str.encode('RTSP/1.0 406 Not Acceptable\r\n') + \
-            self._sequence_number(headers) + \
-            str.encode('\r\n')
+        else:
+            self._on_session_error(data, headers)
 
     def _on_pause(self, headers, data):
         """Manager PAUSE RTSP directive"""
@@ -170,6 +171,11 @@ class Connection:
                 self._session.identification + \
                 str.encode('\r\n')
             self._playing = False
+
+    def _on_session_error(self, data, headers):
+        data.outb = str.encode('RTSP/1.0 454 Session Not Found\r\n') + \
+            self._sequence_number(headers) + \
+            str.encode('\r\n')
 
     def _prepare_sdp(self, content_base, filename):
         self._session = RtspSession(content_base, filename, self._verbal)

@@ -129,6 +129,20 @@ class HevcFragmentMaker(FragmentMaker):  # pylint: disable=too-few-public-method
         return self._indicator + self._header.to_bytes(1, 'big')
 
 
+class TrickPlay:
+    """Parameters of trick play mode"""
+    _scale = 1
+    _backward = False
+
+    def off(self):
+        """Verifies if play is in trick mode"""
+        return self._scale == 1
+
+    def tweak(self, value):
+        """Corrects value according to trick play mode"""
+        return self._scale * value
+
+
 class Streamer:
     """Streams media data in RTP interleaved protocol"""
     _last_frame_time_sec, _frame_duration_sec = 0., 0.
@@ -138,6 +152,7 @@ class Streamer:
 
     def __init__(self, payload_type):
         self._payload_type = payload_type
+        self._trick_play = TrickPlay()
 
     def next_frame(self, reader, track_id, verbal):
         """Reads and returns next frame from mp4 file"""
@@ -145,7 +160,8 @@ class Streamer:
         if self._rtp_header is None:
             return ret
         current_time = time.time()
-        if current_time - self._last_frame_time_sec >= self._frame_duration_sec:
+        if current_time - self._last_frame_time_sec >= \
+                self._trick_play.tweak(self._frame_duration_sec):
             timescale = reader.media_header[track_id].timescale
             timescale_multiplier = reader.samples_info[track_id].timescale_multiplier
             sample = reader.next_sample(track_id)
@@ -156,7 +172,7 @@ class Streamer:
             composition_time = self._decoding_time
             if sample.composition_time is not None:
                 composition_time += sample.composition_time * timescale_multiplier
-            ret = self._frame_to_bytes(sample, composition_time, verbal)
+            ret = self._frame_to_bytes(sample, self._trick_play.tweak(composition_time), verbal)
             self._decoding_time += sample.duration * timescale_multiplier
             self._last_frame_time_sec = current_time
         return ret

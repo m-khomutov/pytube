@@ -8,18 +8,73 @@ from ..rtp.streamer import AvcStreamer, HevcStreamer, AudioStreamer
 from ..atom.hvcc import NetworkUnitType
 
 
+class PlayRange:
+    """Parameters of trick play mode"""
+
+    def __init__(self, track_id, duration):
+        self.track_id = track_id
+        self._duration = duration
+        self._start_clock = datetime.now().timestamp() - int(duration) - 1
+        self._npt_range = [0., duration]
+
+    @property
+    def npt(self):
+        """Returns play range as npt"""
+        return 'npt={:.03f}-{:.03f}\r\n'.format(self._npt_range[0], self._npt_range[1])
+
+    @npt.setter
+    def npt(self, value):
+        """Sets play range as npt"""
+        start, end = value
+        self._npt_range = [float(start) if start else 0.,
+                           float(end) if end else self._duration]
+        self._duration = self._npt_range[1] - self._npt_range[1]
+
+    @property
+    def clock(self):
+        """Returns media duration in Clock format"""
+        fraction = int((self._duration - int(self._duration)) * 1000)
+        start = self._start_clock + self._npt_range[0]
+        end = self._start_clock + self._npt_range[1]
+        ret = 'clock=' + \
+               datetime.fromtimestamp(start).strftime('%Y%m%dT%H%M%SZ-') + \
+               datetime.fromtimestamp(end).strftime('%Y%m%dT%H%M%S') + \
+               ('.' + str(fraction) if fraction else '') + 'Z\r\n'
+        return ret
+
+    @clock.setter
+    def clock(self, value):
+        """Sets play range as npt"""
+        start, end = value
+        if start:
+            start_ts = datetime.strptime(start, "%Y%m%dT%H%M%SZ").timestamp()
+            if self._start_clock > start_ts:
+                self._start_clock = start_ts
+            self._npt_range[0] = start_ts - self._start_clock
+        if end:
+            self._npt_range[1] = \
+                datetime.strptime(end, "%Y%m%dT%H%M%SZ").timestamp() \
+                - self._start_clock
+        self._duration = self._npt_range[1] - self._npt_range[1]
+
+    def clock_position(self, offset):
+        """Returns position in media stream in Clock format"""
+        position = self._start_clock + offset
+        return 'clock=' + \
+               datetime.fromtimestamp(position).strftime('%Y%m%dT%H%M%SZ-\r\n')
+
+
 class Session:
     """RTSP Session parameters"""
     _session_id = ''
     _streamers = {}
     _sdp = ''
+    _play_range = None
 
     def __init__(self, content_base, filename, verbal):
         self._content_base = content_base
         self._reader = Reader(filename)
         self._verbal = verbal
-        self._range = (datetime.now().timestamp() - int(self.duration) - 1,
-                       datetime.now().timestamp() - 1)
         if self._verbal:
             logging.info(self._reader)
         for box in self._reader.find_box('trak'):
@@ -43,8 +98,12 @@ class Session:
     def valid_request(self, headers):
         """Verifies content and session identity"""
         content = headers[0].split()[1]
+        return content == self._content_base and self.valid_session(headers)
+
+    def valid_session(self, headers):
+        """Verifies session identity"""
         session_id = [k for k in headers if 'Session: ' in k][0][9:]
-        return content == self._content_base and session_id == self._session_id
+        return session_id == self._session_id
 
     def get_next_frame(self):
         """If time has come writes next media frame"""
@@ -56,27 +115,31 @@ class Session:
             pass
         return ret
 
-    def normal_play_time(self):
-        """Returns media duration in NPT format"""
-        return 'npt=-' + str(self.duration) + '\r\n'
+    def set_play_range(self, headers):
+        """Returns media duration in Clock or NPT format"""
+        play_range = [x for x in headers if 'Range: ' in x]
+        if play_range:
+            values = play_range[0].split('=')
+            if values[0][-3:] == 'npt':
+                return self.set_play_range_as_npt(values[1])
+            elif values[0][-5:] == 'clock':
+                return self.set_play_range_as_clock(values[1])
+        return ''
 
-    def range_as_absolute_time(self):
+    def set_play_range_as_npt(self, values):
+        """Returns media duration in NPT format"""
+        self._play_range.npt = values.split('-')
+        return 'Range: ' + self._play_range.npt
+
+    def set_play_range_as_clock(self, values):
         """Returns media duration in Clock format"""
-        fraction = int((self.duration - int(self.duration)) * 1000)
-        return 'clock=' + \
-               datetime.fromtimestamp(self._range[0]).strftime('%Y%m%dT%H%M%SZ-') + \
-               datetime.fromtimestamp(self._range[1]).strftime('%Y%m%dT%H%M%S.') + \
-               str(fraction) + 'Z\r\n'
+        self._play_range.clock = values.split('-')
+        return 'Range: ' + self._play_range.clock
 
     def position_absolute_time(self):
         """Returns current position in Clock format"""
-        position = self._range[0]
-
-        for key in (k for k in self._streamers if isinstance(self._streamers[k], AvcStreamer)):
-            position += self._streamers[key].position
-            break
-        return 'clock=' + \
-               datetime.fromtimestamp(position).strftime('%Y%m%dT%H%M%SZ-\r\n')
+        track_id = self._play_range.track_id
+        return self._play_range.clock_position(self._streamers[track_id].position)
 
     @property
     def content_base(self):
@@ -116,16 +179,18 @@ class Session:
 
     def _make_avc_sdp(self, track_id, avc_box):
         self._streamers[track_id] = AvcStreamer(96, (avc_box.sps, avc_box.pps))
+        self._play_range = PlayRange(track_id, self._reader.media_duration_sec)
         ret = 'a=rtpmap:96 H264/90000\r\n' + \
               'a=fmtp:96 packetization-mode=1' + \
               '; sprop-parameter-sets=' + avc_box.sprop_parameter_sets + \
               '; profile-level-id=' + \
               avc_box.profile_level_id + '\r\n' + \
-              'a=range:' + self.range_as_absolute_time()
+              'a=range:' + self._play_range.clock
         return ret + 'a=control:' + str(track_id) + '\r\n'
 
     def _make_hevc_sdp(self, track_id, hevc_box):
         self._streamers[track_id] = HevcStreamer(96)
+        self._play_range = PlayRange(track_id, self._reader.media_duration_sec)
         ret = 'a=rtpmap:96 H265/90000\r\na=fmtp:96 '
         for sprop_set in hevc_box.config_sets:
             if sprop_set.type.nal_unit_type == NetworkUnitType.VPS_NUT:
