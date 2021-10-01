@@ -15,31 +15,31 @@ class PlayRange:
         self.track_id = track_id
         self._duration = duration
         self._start_clock = datetime.now().timestamp() - int(duration) - 1
-        self._npt_range = [0., duration]
+        self.npt_range = [0., duration]
 
     @property
     def npt(self):
         """Returns play range as npt"""
-        return 'npt={:.03f}-{:.03f}\r\n'.format(self._npt_range[0], self._npt_range[1])
+        return 'npt={:.03f}-{:.03f}\r\n'.format(self.npt_range[0], self.npt_range[1])
 
     @npt.setter
     def npt(self, value):
         """Sets play range as npt"""
         start, end = value
-        self._npt_range = [float(start) if start else 0.,
-                           float(end) if end else self._duration]
-        self._duration = self._npt_range[1] - self._npt_range[1]
+        self.npt_range = [float(start) if start else 0.,
+                          float(end) if end else self._duration]
+        self._duration = self.npt_range[1] - self.npt_range[1]
 
     @property
     def clock(self):
         """Returns media duration in Clock format"""
         fraction = int((self._duration - int(self._duration)) * 1000)
-        start = self._start_clock + self._npt_range[0]
-        end = self._start_clock + self._npt_range[1]
+        start = self._start_clock + self.npt_range[0]
+        end = self._start_clock + self.npt_range[1]
         ret = 'clock=' + \
-               datetime.fromtimestamp(start).strftime('%Y%m%dT%H%M%SZ-') + \
-               datetime.fromtimestamp(end).strftime('%Y%m%dT%H%M%S') + \
-               ('.' + str(fraction) if fraction else '') + 'Z\r\n'
+            datetime.fromtimestamp(start).strftime('%Y%m%dT%H%M%SZ-') + \
+            datetime.fromtimestamp(end).strftime('%Y%m%dT%H%M%S') + \
+            ('.' + str(fraction) if fraction else '') + 'Z\r\n'
         return ret
 
     @clock.setter
@@ -50,12 +50,12 @@ class PlayRange:
             start_ts = datetime.strptime(start, "%Y%m%dT%H%M%SZ").timestamp()
             if self._start_clock > start_ts:
                 self._start_clock = start_ts
-            self._npt_range[0] = start_ts - self._start_clock
+            self.npt_range[0] = start_ts - self._start_clock
         if end:
-            self._npt_range[1] = \
+            self.npt_range[1] = \
                 datetime.strptime(end, "%Y%m%dT%H%M%SZ").timestamp() \
                 - self._start_clock
-        self._duration = self._npt_range[1] - self._npt_range[1]
+        self._duration = self.npt_range[1] - self.npt_range[1]
 
     def clock_position(self, offset):
         """Returns position in media stream in Clock format"""
@@ -110,31 +110,28 @@ class Session:
         ret = b''
         try:
             for key in self._streamers:
-                ret += self._streamers[key].next_frame(self._reader, key, self._verbal)
+                ret += self._streamers[key].next_frame(self._reader,
+                                                       key,
+                                                       self._play_range.npt_range[1],
+                                                       self._verbal)
         except:  # noqa # pylint: disable=bare-except
             pass
         return ret
 
     def set_play_range(self, headers):
         """Returns media duration in Clock or NPT format"""
+        ret = ''
         play_range = [x for x in headers if 'Range: ' in x]
         if play_range:
             values = play_range[0].split('=')
             if values[0][-3:] == 'npt':
-                return self.set_play_range_as_npt(values[1])
+                ret = self._set_play_range_as_npt(values[1])
             elif values[0][-5:] == 'clock':
-                return self.set_play_range_as_clock(values[1])
-        return ''
-
-    def set_play_range_as_npt(self, values):
-        """Returns media duration in NPT format"""
-        self._play_range.npt = values.split('-')
-        return 'Range: ' + self._play_range.npt
-
-    def set_play_range_as_clock(self, values):
-        """Returns media duration in Clock format"""
-        self._play_range.clock = values.split('-')
-        return 'Range: ' + self._play_range.clock
+                ret = self._set_play_range_as_clock(values[1])
+            self._reader.move_to(self._play_range.npt_range[0])
+            for key in self._streamers:
+                self._streamers[key].position = self._play_range.npt_range[0]
+        return ret
 
     def position_absolute_time(self):
         """Returns current position in Clock format"""
@@ -212,3 +209,13 @@ class Session:
                    'a=control:' + str(track_id) + '\r\n'
             self._streamers[track_id] = AudioStreamer(97)
         return ret
+
+    def _set_play_range_as_npt(self, values):
+        """Returns media duration in NPT format"""
+        self._play_range.npt = values.split('-')
+        return 'Range: ' + self._play_range.npt
+
+    def _set_play_range_as_clock(self, values):
+        """Returns media duration in Clock format"""
+        self._play_range.clock = values.split('-')
+        return 'Range: ' + self._play_range.clock

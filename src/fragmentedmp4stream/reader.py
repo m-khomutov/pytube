@@ -204,6 +204,16 @@ class Reader:
         sample.data = self.file.read(sample.size)
         return sample
 
+    def move_to(self, offset):
+        """Moves position indicator from the beginning to the offset"""
+        for key in self.samples_info:
+            timescale = self.media_header[key].timescale
+            duration = 0.
+            while offset and duration / timescale < offset:
+                sample = self.samples_info[key].sample()
+                self.samples_info[key].next()
+                duration += sample.duration
+
     def sample(self, offset, size):
         """Reads a sample from file"""
         self.file.seek(offset)

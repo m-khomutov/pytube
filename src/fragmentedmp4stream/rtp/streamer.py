@@ -154,10 +154,10 @@ class Streamer:
         self._payload_type = payload_type
         self._trick_play = TrickPlay()
 
-    def next_frame(self, reader, track_id, verbal):
+    def next_frame(self, reader, track_id, end_time, verbal):
         """Reads and returns next frame from mp4 file"""
         ret = b''
-        if self._rtp_header is None:
+        if self._rtp_header is None or self._position >= end_time:
             return ret
         current_time = time.time()
         if current_time - self._last_frame_time_sec >= \
@@ -205,6 +205,11 @@ class Streamer:
     def position(self):
         """Returns current position as duration of all written frames"""
         return self._position
+
+    @position.setter
+    def position(self, value):
+        """Sets current position as duration of all written frames"""
+        self._position = value
 
     @abc.abstractmethod
     def _frame_to_bytes(self, sample, composition_time, verbal) -> bytes:
