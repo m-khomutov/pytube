@@ -12,25 +12,36 @@ class ClockRate(IntEnum):
 
 class SamplesStscInfo:
     """Sample to chunk information"""
+    _chunk_index, _sample_index = 0, 0
+
     def __init__(self, entries):
-        self._entries = []
-        self._index = [0, 0]
+        self._chunks = []  # each chunk contains number of samples
         for i, entry in enumerate(entries):
             if i > 0:
-                run_size = entry.first_chunk - entries[i-1].first_chunk
-                self._entries.extend([entries[i-1].samples_per_chunk] * run_size)
+                chunk_run_size = entry.first_chunk - entries[i-1].first_chunk
+                self._chunks.extend([entries[i-1].samples_per_chunk] * chunk_run_size)
 
-    def is_iterate_offset(self):
+    @property
+    def chunk_aligned(self):
         """Verifies if two step offset should be iterated"""
-        return self._index[1] >= len(self._entries) or self._index[0] == 0
+        return self._sample_index == 0
 
     def next(self):
-        """Iterates two step offset"""
-        if self._index[1] < len(self._entries):
-            self._index[0] += 1
-            if self._index[0] >= self._entries[self._index[1]]:
-                self._index[0] = 0
-                self._index[1] += 1
+        """Forward iterates chunk to sample index"""
+        if self._chunk_index < len(self._chunks):
+            self._sample_index += 1
+            if self._sample_index >= self._chunks[self._chunk_index]:  # chunk is depleted
+                self._sample_index = 0
+                self._chunk_index += 1
+
+    def prev(self):
+        """Backward iterates chunk to sample index"""
+        if self._sample_index == 0:  # chunk is depleted
+            if self._chunk_index:
+                self._chunk_index -= 1
+                self._sample_index = self._chunks[self._chunk_index]
+        if self._sample_index:
+            self._sample_index -= 1
 
 
 class SamplesStcoInfo:
@@ -44,9 +55,18 @@ class SamplesStcoInfo:
         return self._entries[self._index]
 
     def next(self):
-        """Iterates chunk"""
+        """Forward iterates chunk offset index"""
         if self._index < len(self._entries):
             self._index += 1
+        else:
+            raise EOFError('stco box depleted')
+
+    def prev(self):
+        """Backward iterates chunk offset index"""
+        if self._index > 0:
+            self._index -= 1
+        else:
+            raise EOFError('stco box depleted')
 
 
 class SamplesStszInfo:
@@ -60,54 +80,93 @@ class SamplesStszInfo:
         return self._entries[self._index]
 
     def next(self):
-        """Iterates sample"""
+        """Forward iterates sample size index"""
         if self._index < len(self._entries):
             self._index += 1
+        else:
+            raise EOFError('stsz box depleted')
+
+    def prev(self):
+        """Backward iterates sample size index"""
+        if self._index > 0:
+            self._index -= 1
+        else:
+            raise EOFError('stsz box depleted')
 
 
 class SamplesSttsInfo:
     """Decoding Time to sample"""
+    _entry_index, _delta_index = 0, 0
+
     def __init__(self, entries):
         self._entries = entries
-        self._index = [0, 0]
 
     def current_decoding_time(self):
         """Returns decoding time of the current sample"""
-        return self._entries[self._index[1]].delta
+        return self._entries[self._entry_index].delta
 
     def next(self):
-        """Iterates sample"""
-        self._index[0] += 1
-        if self._index[0] >= self._entries[self._index[1]].count:
-            self._index[0] = 0
-            self._index[1] += 1
+        """Forward iterates sample decoding time index"""
+        self._delta_index += 1
+        if self._delta_index >= self._entries[self._entry_index].count:  # entry is depleted
+            self._delta_index = 0
+            self._entry_index += 1
+        if self._entry_index >= len(self._entries):
+            raise EOFError('stts box depleted')
+
+    def prev(self):
+        """Backward iterates sample decoding time index"""
+        if self._delta_index == 0:
+            if self._entry_index:  # entry is depleted
+                self._entry_index -= 1
+                self._delta_index = self._entries[self._entry_index].count
+            else:
+                raise EOFError('stts box depleted')
+        if self._delta_index:
+            self._delta_index -= 1
 
 
 class SamplesCttsInfo:
     """Composition Time to sample"""
+    _offset_index, _entry_index = 0, 0
+
     def __init__(self):
         self.entries = []
-        self.index = [0, 0]
 
     def current_composition_time(self):
         """Returns composition time of the current sample"""
         if self.entries:
-            return self.entries[self.index[1]].offset
+            return self.entries[self._entry_index].offset
         return None
 
     def next(self):
-        """Iterates sample"""
+        """Iterates forward sample"""
+        if self.entries and self._entry_index < len(self.entries):
+            self._offset_index += 1
+            if self._offset_index >= self.entries[self._entry_index].count:
+                self._offset_index = 0
+                self._entry_index += 1
+        if self.entries and self._entry_index >= len(self.entries):
+            raise EOFError('ctts box depleted')
+
+    def prev(self):
+        """Iterates backward sample"""
         if self.entries:
-            self.index[0] += 1
-            if self.index[0] >= self.entries[self.index[1]].count:
-                self.index[0] = 0
-                self.index[1] += 1
+            if self._offset_index == 0:
+                if self._entry_index:  # entry is depleted
+                    self._entry_index -= 1
+                    self._offset_index = self.entries[self._entry_index].count
+                else:
+                    raise EOFError('ctts box depleted')
+            if self._offset_index:
+                self._offset_index -= 1
 
 
 class SamplesInfo:  # pylint: disable=too-many-instance-attributes
     """Composite information of sample atoms"""
     offset, size, unit_size_bytes = 0, 0, 0
     timescale_multiplier = 1
+    _info_depleted = False
 
     def __init__(self):
         self.stco = SamplesStcoInfo([])
@@ -138,8 +197,10 @@ class SamplesInfo:  # pylint: disable=too-many-instance-attributes
 
     def sample(self):
         """Returns a specific sample information"""
+        if self._info_depleted:
+            return None
         ret = trun.Frame(self.unit_size_bytes)
-        if self.stsc.is_iterate_offset():
+        if self.stsc.chunk_aligned:
             ret.offset = self.offset = self.stco.offset()
         else:
             self.offset += self.size
@@ -150,13 +211,30 @@ class SamplesInfo:  # pylint: disable=too-many-instance-attributes
         return ret
 
     def next(self):
-        """Iterates overall sample information"""
-        self.stsc.next()
-        if self.stsc.is_iterate_offset():
-            self.stco.next()
-        self.stsz.next()
-        self.stts.next()
-        self.ctts.next()
+        """Iterates forward overall sample information"""
+        if not self._info_depleted:
+            try:
+                self.stsc.next()
+                if self.stsc.chunk_aligned:
+                    self.stco.next()
+                self.stsz.next()
+                self.stts.next()
+                self.ctts.next()
+            except EOFError:
+                self._info_depleted = True
+
+    def prev(self):
+        """Iterates backward overall sample information"""
+        if not self._info_depleted:
+            try:
+                self.stsc.prev()
+                if self.stsc.chunk_aligned:
+                    self.stco.prev()
+                self.stsz.prev()
+                self.stts.prev()
+                self.ctts.prev()
+            except EOFError:
+                self._info_depleted = True
 
 
 class Reader:
@@ -199,20 +277,20 @@ class Reader:
     def next_sample(self, track_id):
         """Reads track next sample from file"""
         sample = self.samples_info[track_id].sample()
+        if sample is None:
+            raise IndexError('samples depleted')
         self.samples_info[track_id].next()
         self.file.seek(sample.offset)
         sample.data = self.file.read(sample.size)
         return sample
 
     def move_to(self, offset):
-        """Moves position indicator from the beginning to the offset"""
-        for key in self.samples_info:
-            timescale = self.media_header[key].timescale
-            duration = 0.
-            while offset and duration / timescale < offset:
-                sample = self.samples_info[key].sample()
-                self.samples_info[key].next()
-                duration += sample.duration
+        """Moves forward position indicator to the offset"""
+        self.move(offset, True)
+
+    def move_back(self, offset):
+        """Moves backward position indicator to the offset"""
+        self.move(offset, False)
 
     def sample(self, offset, size):
         """Reads a sample from file"""
@@ -222,6 +300,21 @@ class Reader:
     def has_composition_time(self, track_id):
         """Checks if sample has composition time"""
         return len(self.samples_info[track_id].ctts.entries) > 0
+
+    def move(self, offset, forward):
+        """Moves forward position indicator to the offset"""
+        for key in self.samples_info:
+            timescale = self.media_header[key].timescale
+            duration = 0.
+            while offset and duration / timescale < offset:
+                sample = self.samples_info[key].sample()
+                if sample is None:
+                    break
+                if forward:
+                    self.samples_info[key].next()
+                else:
+                    self.samples_info[key].prev()
+                duration += sample.duration
 
     def _get_next_box(self, depth, track_id, handler):
         """Reads a box from file"""

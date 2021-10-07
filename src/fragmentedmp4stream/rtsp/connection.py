@@ -42,7 +42,10 @@ class Connection:
             sent = key.fileobj.send(key.data.outb)  # Should be ready to write
             key.data.outb = key.data.outb[sent:]
         if self._session and self._playing:
-            key.data.outb = self._session.get_next_frame()
+            try:
+                key.data.outb = self._session.get_next_frame()
+            except:  # noqa # pylint: disable=bare-except
+                self._playing = False
 
     def _on_rtsp_directive(self, data):
         """Manages RTSP directive"""
@@ -152,7 +155,13 @@ class Connection:
 
     def _on_pause(self, headers, data):
         """Manager PAUSE RTSP directive"""
-        pass
+        if self._session.valid_request(headers):
+            data.outb = str.encode('RTSP/1.0 200 OK\r\n') + \
+                self._sequence_number(headers) + \
+                self._datetime() + \
+                self._session.identification + \
+                str.encode('\r\n')
+            self._playing = False
 
     def _on_record(self, headers, data):
         """Manager RECORD RTSP directive"""

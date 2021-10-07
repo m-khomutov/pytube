@@ -108,14 +108,11 @@ class Session:
     def get_next_frame(self):
         """If time has come writes next media frame"""
         ret = b''
-        try:
-            for key in self._streamers:
-                ret += self._streamers[key].next_frame(self._reader,
-                                                       key,
-                                                       self._play_range.npt_range[1],
-                                                       self._verbal)
-        except:  # noqa # pylint: disable=bare-except
-            pass
+        for key in self._streamers:
+            ret += self._streamers[key].next_frame(self._reader,
+                                                   key,
+                                                   self._play_range.npt_range[1],
+                                                   self._verbal)
         return ret
 
     def set_play_range(self, headers):
@@ -128,7 +125,11 @@ class Session:
                 ret = self._set_play_range_as_npt(values[1])
             elif values[0][-5:] == 'clock':
                 ret = self._set_play_range_as_clock(values[1])
-            self._reader.move_to(self._play_range.npt_range[0])
+            start_ts = self._streamers[self._play_range.track_id].position
+            if self._play_range.npt_range[0] >= start_ts:
+                self._reader.move_to(self._play_range.npt_range[0] - start_ts)
+            else:
+                self._reader.move_back(start_ts - self._play_range.npt_range[0])
             for key in self._streamers:
                 self._streamers[key].position = self._play_range.npt_range[0]
         return ret
