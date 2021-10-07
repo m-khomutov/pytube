@@ -16,8 +16,16 @@ class Connection:
                           ' GMT\r\n')
 
     @staticmethod
+    def _header(headers, header):
+        return [k for k in headers if header + ': ' in k]
+
+    @staticmethod
     def _sequence_number(headers):
-        return str.encode([k for k in headers if 'CSeq: ' in k][0] + '\r\n')
+        return str.encode(Connection._header(headers, 'CSeq')[0] + '\r\n')
+
+    @staticmethod
+    def _scale(headers):
+        return Connection._header(headers, 'Scale')[0]
 
     def __init__(self, address, params):
         self._root = params.get("root", ".")
@@ -143,6 +151,10 @@ class Connection:
     def _on_play(self, headers, data):
         """Manager PLAY RTSP directive"""
         if self._session.valid_request(headers):
+            try:
+                scale = Connection._scale(headers)
+            except IndexError:
+                scale = 1
             data.outb = str.encode('RTSP/1.0 200 OK\r\n') + \
                 self._sequence_number(headers) + \
                 str.encode(self._session.set_play_range(headers)) + \
