@@ -134,6 +134,15 @@ class Session:
                 self._streamers[key].position = self._play_range.npt_range[0]
         return ret
 
+    def set_scale(self, header):
+        """Sets playing media scale. Returns scale as Header"""
+        scale = int(header[7:])
+        if scale > 0:
+            for key in self._streamers:
+                self._streamers[key].trick_play.scale = scale
+            return header + '\r\n'
+        return ''
+
     def position_absolute_time(self):
         """Returns current position in Clock format"""
         track_id = self._play_range.track_id

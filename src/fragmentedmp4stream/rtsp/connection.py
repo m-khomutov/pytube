@@ -25,7 +25,8 @@ class Connection:
 
     @staticmethod
     def _scale(headers):
-        return Connection._header(headers, 'Scale')[0]
+        ret = Connection._header(headers, 'Scale')
+        return ret[0] if ret else 'Scale: 0'
 
     def __init__(self, address, params):
         self._root = params.get("root", ".")
@@ -151,13 +152,10 @@ class Connection:
     def _on_play(self, headers, data):
         """Manager PLAY RTSP directive"""
         if self._session.valid_request(headers):
-            try:
-                scale = Connection._scale(headers)
-            except IndexError:
-                scale = 1
             data.outb = str.encode('RTSP/1.0 200 OK\r\n') + \
                 self._sequence_number(headers) + \
                 str.encode(self._session.set_play_range(headers)) + \
+                str.encode(self._session.set_scale(Connection._scale(headers))) + \
                 self._datetime() + \
                 self._session.identification + \
                 str.encode('\r\n')

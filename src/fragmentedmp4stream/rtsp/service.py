@@ -3,6 +3,8 @@ import socket
 import selectors
 import types
 import threading
+import time
+import logging
 from .connection import Connection as RtspConnection
 
 
@@ -21,10 +23,16 @@ class Service(threading.Thread):
         """Starts managing RTSP protocol network activity"""
         selector = selectors.DefaultSelector()
         accept_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        accept_sock.bind(self._bind_address)
+        while True:
+            try:
+                accept_sock.bind(self._bind_address)
+                break
+            except OSError:
+                time.sleep(2)
         accept_sock.listen()
         accept_sock.setblocking(False)
         selector.register(accept_sock, selectors.EVENT_READ, data=None)
+        logging.info('Ok')
         while self._is_running():
             for key, mask in selector.select(timeout=.01):
                 if key.data is None:

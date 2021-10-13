@@ -134,13 +134,28 @@ class TrickPlay:
     _scale = 1
     _backward = False
 
-    def off(self):
-        """Verifies if play is in trick mode"""
-        return self._scale == 1
+    def __init__(self, used=False):
+        self._is_used = used
 
-    def tweak(self, value):
-        """Corrects value according to trick play mode"""
-        return self._scale * value
+    @property
+    def scale(self):
+        """Returns current scale value"""
+        return self._scale if not self._backward else -1 * self._scale
+
+    @scale.setter
+    def scale(self, value):
+        """Sets current scale value"""
+        if value < 0:
+            self._scale = -1 * value
+            self._backward = True
+        else:
+            self._scale = value
+            self._backward = False
+
+    @property
+    def is_used(self):
+        """Verifies if play is in trick mode"""
+        return self._is_used
 
 
 class Streamer:
@@ -150,18 +165,20 @@ class Streamer:
     _rtp_header = None
     _decoding_time = random.randint(0, 0xffffffff)
 
-    def __init__(self, payload_type):
+    def __init__(self, payload_type, trick_play=TrickPlay()):
         self._payload_type = payload_type
-        self._trick_play = TrickPlay()
+        self.trick_play = trick_play
 
     def next_frame(self, reader, track_id, end_time, verbal):
         """Reads and returns next frame from mp4 file"""
         ret = b''
         if self._rtp_header is None or self._position >= end_time:
             return ret
+        if int(self.trick_play.scale) != 1 and not self.trick_play.is_used:
+            return ret
         current_time = time.time()
         if current_time - self._last_frame_time_sec >= \
-                self._trick_play.tweak(self._frame_duration_sec):
+                self._frame_duration_sec / self.trick_play.scale:
             timescale = reader.media_header[track_id].timescale
             timescale_multiplier = reader.samples_info[track_id].timescale_multiplier
             sample = reader.next_sample(track_id)
@@ -172,7 +189,9 @@ class Streamer:
             composition_time = self._decoding_time
             if sample.composition_time is not None:
                 composition_time += sample.composition_time * timescale_multiplier
-            ret = self._frame_to_bytes(sample, self._trick_play.tweak(composition_time), verbal)
+            ret = self._frame_to_bytes(sample,
+                                       composition_time >> (self.trick_play.scale - 1),
+                                       verbal)
             self._decoding_time += sample.duration * timescale_multiplier
             self._last_frame_time_sec = current_time
         return ret
@@ -220,7 +239,7 @@ class Streamer:
 class AvcStreamer(Streamer):
     """Streams video data in RTP interleaved protocol"""
     def __init__(self, payload_type, param_sets=()):
-        super().__init__(payload_type)
+        super().__init__(payload_type, TrickPlay(True))
         self.param_sets = param_sets
 
     def _frame_to_bytes(self, sample, composition_time, verbal):
@@ -235,7 +254,7 @@ class AvcStreamer(Streamer):
 class HevcStreamer(Streamer):
     """Streams video data in RTP interleaved protocol"""
     def __init__(self, payload_type, param_sets=()):
-        super().__init__(payload_type)
+        super().__init__(payload_type, TrickPlay(True))
         self.param_sets = param_sets
 
     def _frame_to_bytes(self, sample, composition_time, verbal):
