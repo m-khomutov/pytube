@@ -152,10 +152,11 @@ class Connection:
     def _on_play(self, headers, data):
         """Manager PLAY RTSP directive"""
         if self._session.valid_request(headers):
+            scale = int(Connection._scale(headers)[7:])
             data.outb = str.encode('RTSP/1.0 200 OK\r\n') + \
                 self._sequence_number(headers) + \
-                str.encode(self._session.set_play_range(headers)) + \
-                str.encode(self._session.set_scale(Connection._scale(headers))) + \
+                str.encode(self._session.set_play_range(headers, scale)) + \
+                str.encode(self._session.set_scale(scale)) + \
                 self._datetime() + \
                 self._session.identification + \
                 str.encode('\r\n')

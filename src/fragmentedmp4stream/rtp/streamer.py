@@ -132,30 +132,34 @@ class HevcFragmentMaker(FragmentMaker):  # pylint: disable=too-few-public-method
 class TrickPlay:
     """Parameters of trick play mode"""
     _scale = 1
-    _backward = False
 
-    def __init__(self, used=False):
-        self._is_used = used
+    def __init__(self, applicable=False):
+        self._applicable = applicable
 
     @property
     def scale(self):
         """Returns current scale value"""
-        return self._scale if not self._backward else -1 * self._scale
+        return abs(self._scale)
 
     @scale.setter
     def scale(self, value):
         """Sets current scale value"""
-        if value < 0:
-            self._scale = -1 * value
-            self._backward = True
-        else:
-            self._scale = value
-            self._backward = False
+        self._scale = value
 
     @property
-    def is_used(self):
+    def forward(self):
+        """Returns if direction is forward"""
+        return self._scale > 0
+
+    @property
+    def active(self):
         """Verifies if play is in trick mode"""
-        return self._is_used
+        return self._scale != 1
+
+    @property
+    def applicable(self):
+        """Verifies if trick mode can be applied to the stream"""
+        return self._applicable
 
 
 class Streamer:
@@ -174,17 +178,20 @@ class Streamer:
         ret = b''
         if self._rtp_header is None or self._position >= end_time:
             return ret
-        if int(self.trick_play.scale) != 1 and not self.trick_play.is_used:
+        if self.trick_play.active and not self.trick_play.applicable:
             return ret
         current_time = time.time()
         if current_time - self._last_frame_time_sec >= \
                 self._frame_duration_sec / self.trick_play.scale:
             timescale = reader.media_header[track_id].timescale
             timescale_multiplier = reader.samples_info[track_id].timescale_multiplier
-            sample = reader.next_sample(track_id)
+            sample = reader.next_sample(track_id, self.trick_play.forward)
             if verbal:
                 logging.info(str(sample))
-            self._position += self._frame_duration_sec
+            if self.trick_play.forward:
+                self._position += self._frame_duration_sec
+            else:
+                self._position -= self._frame_duration_sec
             self._frame_duration_sec = sample.duration / timescale
             composition_time = self._decoding_time
             if sample.composition_time is not None:

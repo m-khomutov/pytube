@@ -274,12 +274,15 @@ class Reader:
             ret.extend(box.find_inner_boxes(box_type))
         return ret
 
-    def next_sample(self, track_id):
+    def next_sample(self, track_id, forward):
         """Reads track next sample from file"""
         sample = self.samples_info[track_id].sample()
         if sample is None:
             raise IndexError('samples depleted')
-        self.samples_info[track_id].next()
+        if forward:
+            self.samples_info[track_id].next()
+        else:
+            self.samples_info[track_id].prev()
         self.file.seek(sample.offset)
         sample.data = self.file.read(sample.size)
         return sample

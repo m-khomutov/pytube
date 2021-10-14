@@ -115,7 +115,7 @@ class Session:
                                                    self._verbal)
         return ret
 
-    def set_play_range(self, headers):
+    def set_play_range(self, headers, scale):
         """Returns media duration in Clock or NPT format"""
         ret = ''
         play_range = [x for x in headers if 'Range: ' in x]
@@ -125,22 +125,15 @@ class Session:
                 ret = self._set_play_range_as_npt(values[1])
             elif values[0][-5:] == 'clock':
                 ret = self._set_play_range_as_clock(values[1])
-            start_ts = self._streamers[self._play_range.track_id].position
-            if self._play_range.npt_range[0] >= start_ts:
-                self._reader.move_to(self._play_range.npt_range[0] - start_ts)
-            else:
-                self._reader.move_back(start_ts - self._play_range.npt_range[0])
-            for key in self._streamers:
-                self._streamers[key].position = self._play_range.npt_range[0]
+            self._set_position(scale)
         return ret
 
-    def set_scale(self, header):
+    def set_scale(self, scale):
         """Sets playing media scale. Returns scale as Header"""
-        scale = int(header[7:])
-        if scale > 0:
+        if scale != 0:
             for key in self._streamers:
                 self._streamers[key].trick_play.scale = scale
-            return header + '\r\n'
+            return 'Scale: ' + str(scale) + '\r\n'
         return ''
 
     def position_absolute_time(self):
@@ -229,3 +222,13 @@ class Session:
         """Returns media duration in Clock format"""
         self._play_range.clock = values.split('-')
         return 'Range: ' + self._play_range.clock
+
+    def _set_position(self, scale):
+        fwd = 0 if scale > 0 else 1
+        start_ts = self._streamers[self._play_range.track_id].position
+        if self._play_range.npt_range[fwd] >= start_ts:
+            self._reader.move_to(self._play_range.npt_range[fwd] - start_ts)
+        else:
+            self._reader.move_back(start_ts - self._play_range.npt_range[fwd])
+        for key in self._streamers:
+            self._streamers[key].position = self._play_range.npt_range[fwd]
