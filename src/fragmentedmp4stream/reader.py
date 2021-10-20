@@ -2,7 +2,7 @@
 from enum import IntEnum
 from .atom.atom import Box
 from .atom import stco, stsc, stsz, tkhd, mdhd, co64, stts, ctts, hdlr, stsd, trun
-from .atom import ftyp, vmhd, mvhd, smhd, dref  # noqa # pylint: disable=unused-import
+from .atom import ftyp, vmhd, mvhd, smhd, dref, hvcc  # noqa # pylint: disable=unused-import
 
 
 class ClockRate(IntEnum):
@@ -274,7 +274,7 @@ class Reader:
             ret.extend(box.find_inner_boxes(box_type))
         return ret
 
-    def next_sample(self, track_id, forward):
+    def next_sample(self, track_id, forward=True):
         """Reads track next sample from file"""
         sample = self.samples_info[track_id].sample()
         if sample is None:
@@ -415,3 +415,15 @@ class Reader:
         if box.type == co64.atom_type():
             self.samples_info[track_id].fill_chunk_offset_info(box.entries)
         return track_id, handler
+
+    def is_keyframe(self, frame):
+        """Checks if the frame is IDR frame"""
+        for chunk in frame:
+            if self.video_stream_type == stsd.VideoCodecType.AVC:
+                if chunk[0] & 0x1f == 5:
+                    return True
+                if chunk[0] & 0x1f == 1:
+                    return False
+            if self.video_stream_type == stsd.VideoCodecType.HEVC:
+                return hvcc.NetworkUnitHeader(chunk[:2]).keyframe()
+        raise TypeError

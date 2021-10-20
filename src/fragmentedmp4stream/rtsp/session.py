@@ -28,7 +28,7 @@ class PlayRange:
         start, end = value
         self.npt_range = [float(start) if start else 0.,
                           float(end) if end else self._duration]
-        self._duration = self.npt_range[1] - self.npt_range[1]
+        self._duration = self.npt_range[1] - self.npt_range[0]
 
     @property
     def clock(self):
@@ -55,7 +55,7 @@ class PlayRange:
             self.npt_range[1] = \
                 datetime.strptime(end, "%Y%m%dT%H%M%SZ").timestamp() \
                 - self._start_clock
-        self._duration = self.npt_range[1] - self.npt_range[1]
+        self._duration = self.npt_range[1] - self.npt_range[0]
 
     def clock_position(self, offset):
         """Returns position in media stream in Clock format"""
@@ -109,10 +109,16 @@ class Session:
         """If time has come writes next media frame"""
         ret = b''
         for key in self._streamers:
-            ret += self._streamers[key].next_frame(self._reader,
-                                                   key,
-                                                   self._play_range.npt_range[1],
-                                                   self._verbal)
+            if self._streamers[key].trick_play.forward:
+                ret += self._streamers[key].next_frame(self._reader,
+                                                       key,
+                                                       self._play_range.npt_range[1],
+                                                       self._verbal)
+            else:
+                ret += self._streamers[key].prev_frame(self._reader,
+                                                       key,
+                                                       self._play_range.npt_range[0],
+                                                       self._verbal)
         return ret
 
     def set_play_range(self, headers, scale):
@@ -224,7 +230,7 @@ class Session:
         return 'Range: ' + self._play_range.clock
 
     def _set_position(self, scale):
-        fwd = 0 if scale > 0 else 1
+        fwd = 0 if scale >= 0 else 1
         start_ts = self._streamers[self._play_range.track_id].position
         if self._play_range.npt_range[fwd] >= start_ts:
             self._reader.move_to(self._play_range.npt_range[fwd] - start_ts)

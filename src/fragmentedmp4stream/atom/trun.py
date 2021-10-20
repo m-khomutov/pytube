@@ -4,14 +4,13 @@ from enum import IntFlag
 from .atom import FullBox, full_box_derived
 
 
-class Frame:
-    """Data frame to store in the run box"""
-    duration, offset, size = 0, 0, 0
-    composition_time = None
-    _data = b''
+class FrameIter:
+    """Chunk iterator of data frame """
     _chunk_offset = 0
 
-    def __init__(self, unit_size_bytes=0):
+    def __init__(self, data, size, unit_size_bytes):
+        self._data = data
+        self.size = size
         self._unit_size_bytes = unit_size_bytes
 
     def __iter__(self):
@@ -28,6 +27,20 @@ class Frame:
         )
         self._chunk_offset += self._unit_size_bytes + chunk_size
         return self._data[self._chunk_offset-chunk_size:self._chunk_offset]
+
+
+class Frame:
+    """Data frame to store in the run box"""
+    duration, offset, size = 0, 0, 0
+    composition_time = None
+    _data = b''
+    _chunk_offset = 0
+
+    def __init__(self, unit_size_bytes=0):
+        self._unit_size_bytes = unit_size_bytes
+
+    def __iter__(self):
+        return FrameIter(self._data, self.size, self._unit_size_bytes)
 
     def __str__(self):
         ret = f'duration:{self.duration} offset:{self.offset} size:{self.size}'

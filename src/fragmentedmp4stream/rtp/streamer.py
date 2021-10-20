@@ -173,35 +173,17 @@ class Streamer:
         self._payload_type = payload_type
         self.trick_play = trick_play
 
+    def prev_frame(self, reader, track_id, start_time, verbal):
+        """Reads and returns previous frame from mp4 file"""
+        if self._rtp_header is None or self._position <= start_time:
+            return b''
+        return self._frame(reader, track_id, verbal)
+
     def next_frame(self, reader, track_id, end_time, verbal):
         """Reads and returns next frame from mp4 file"""
-        ret = b''
         if self._rtp_header is None or self._position >= end_time:
-            return ret
-        if self.trick_play.active and not self.trick_play.applicable:
-            return ret
-        current_time = time.time()
-        if current_time - self._last_frame_time_sec >= \
-                self._frame_duration_sec / self.trick_play.scale:
-            timescale = reader.media_header[track_id].timescale
-            timescale_multiplier = reader.samples_info[track_id].timescale_multiplier
-            sample = reader.next_sample(track_id, self.trick_play.forward)
-            if verbal:
-                logging.info(str(sample))
-            if self.trick_play.forward:
-                self._position += self._frame_duration_sec
-            else:
-                self._position -= self._frame_duration_sec
-            self._frame_duration_sec = sample.duration / timescale
-            composition_time = self._decoding_time
-            if sample.composition_time is not None:
-                composition_time += sample.composition_time * timescale_multiplier
-            ret = self._frame_to_bytes(sample,
-                                       composition_time >> (self.trick_play.scale - 1),
-                                       verbal)
-            self._decoding_time += sample.duration * timescale_multiplier
-            self._last_frame_time_sec = current_time
-        return ret
+            return b''
+        return self._frame(reader, track_id, verbal)
 
     def to_bytes(self, marker, chunk, composition_time, verbal):
         """Returns chunk as bytestream, ready to be sent to socket"""
@@ -241,6 +223,36 @@ class Streamer:
     def _frame_to_bytes(self, sample, composition_time, verbal) -> bytes:
         """Returns media sample as bytestream, ready to be sent to socket"""
         return b''
+
+    def _frame(self, reader, track_id, verbal):
+        ret = b''
+        if self.trick_play.active and not self.trick_play.applicable:
+            return ret
+        current_time = time.time()
+        if current_time - self._last_frame_time_sec >= \
+                self._frame_duration_sec / self.trick_play.scale:
+            timescale = reader.media_header[track_id].timescale
+            timescale_multiplier = reader.samples_info[track_id].timescale_multiplier
+            sample = reader.next_sample(track_id, self.trick_play.forward)
+            if verbal:
+                logging.info(str(sample))
+            if self.trick_play.forward:
+                self._position += self._frame_duration_sec
+            else:
+                self._position -= self._frame_duration_sec
+            self._frame_duration_sec = sample.duration / timescale
+            composition_time = self._decoding_time
+            if sample.composition_time is not None:
+                composition_time += sample.composition_time * timescale_multiplier
+            self._decoding_time += sample.duration * timescale_multiplier
+            self._last_frame_time_sec = current_time
+            if self.trick_play.active and not self.trick_play.forward:
+                if not reader.is_keyframe(sample):
+                    return ret
+            ret = self._frame_to_bytes(sample,
+                                       composition_time >> (self.trick_play.scale - 1),
+                                       verbal)
+        return ret
 
 
 class AvcStreamer(Streamer):

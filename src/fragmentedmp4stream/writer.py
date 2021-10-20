@@ -1,6 +1,6 @@
 """generates fragmented MP4 format"""
 from .atom.atom import Box, FullBox
-from .atom import trex, stco, stsc, mfhd, stts, stsd, mdat, trun, tfhd, stsz, hvcc
+from .atom import trex, stco, stsc, mfhd, stts, mdat, trun, tfhd, stsz
 
 
 class Writer:
@@ -171,7 +171,7 @@ class Writer:
             try:
                 video_frame = self._reader.next_sample(track_id)
                 if len(video_frame.data) == video_frame.size:
-                    if self._keyframe(video_frame) and not fragment_mdat.empty():
+                    if self._reader.is_keyframe(video_frame) and not fragment_mdat.empty():
                         self.first_video_frame = video_frame
                         chunk_duration /= self._reader.media_header[track_id].timescale
                         break
@@ -232,14 +232,3 @@ class Writer:
                 size = 2
                 break
         return size
-
-    def _keyframe(self, frame):
-        for chunk in frame:
-            if self._reader.video_stream_type == stsd.VideoCodecType.AVC:
-                if chunk[0] & 0x1f == 5:
-                    return True
-                if chunk[0] & 0x1f == 1:
-                    return False
-            if self._reader.video_stream_type == stsd.VideoCodecType.HEVC:
-                return hvcc.NetworkUnitHeader(chunk[:2]).keyframe()
-        raise TypeError
