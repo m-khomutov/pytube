@@ -147,6 +147,7 @@ class Service:
               "-r(--root) files directory(req)\n\t"
               "-s(--segment) segment duration floor\n\t"
               "-c(--cache) cache segmentation as .*.cache files\n\t"
+              "-a(--auth) user:password@realm\n\t"
               "-v(--verb) be verbose\n\t"
               "-h(--help) this help")
 
@@ -175,8 +176,14 @@ def start(argv):
     """Program start point"""
     try:
         opts, args = getopt.getopt(argv,
-                                   "hp:r:s:cv",
-                                   ["help", "ports=", "root=", "segment=", "cache", "verb"])
+                                   "hp:r:s:a:cv",
+                                   ["help",
+                                    "ports=",
+                                    "root=",
+                                    "segment=",
+                                    "auth=",
+                                    "cache",
+                                    "verb"])
         if args:
             Service.print_options()
             sys.exit()
@@ -199,6 +206,8 @@ def start(argv):
                 params['root'] = arg
             elif opt in ('-s', '--segment'):
                 params['segment'] = float(arg)
+            elif opt in ('-a', '--auth'):
+                params['auth'] = arg
             elif opt in ('-c', '--cache'):
                 params['cache'] = True
             elif opt in ('-v', '--verb'):

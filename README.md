@@ -25,6 +25,7 @@ if __name__ == "__main__":
 * -r(--root) files directory(required) - path to seek required mp4 file
 * -s(--segment) segment duration sec.(def. *6*) - floor limit of segment duration
 * -c(--cache) cache segmentation - save segmentation as .*.cache files
+* -a(--auth) user:password@realm
 * -v(--verb) be verbose (show structure of required mp4 file)
 * -h(--help) this help
 
@@ -69,6 +70,10 @@ if __name__ == "__main__":
   >`http://ip:http_port/filename_with_m3u_extension`
 * rtsp
   >`rtsp://ip:rtsp_port/filename_without_extension`
+
+**autorization**
+Supports Basic and Digest authorization. A specific authorization can be setup or both.
+If both, the order in WWW-Authorization is that of setup.
 
 **example1**
 

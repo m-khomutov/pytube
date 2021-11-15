@@ -2,6 +2,7 @@
 import os
 from datetime import datetime
 from .session import Session as RtspSession
+from ..authentication import Authentication, AuthenticationException
 
 
 class Connection:
@@ -33,6 +34,10 @@ class Connection:
         self._verbal = params.get("verb", False)
         self._address = address
         print(f'RTSP connect from {self._address}')
+        try:
+            self._auth = Authentication.make(params.get('auth', ''))
+        except ValueError:
+            self._auth = None
 
     def on_read_event(self, key):
         """Manager read socket event"""
@@ -65,26 +70,33 @@ class Connection:
             headers = directive.split('\r\n')
             if headers[0][:8] == 'OPTIONS ':
                 self._on_options(headers, data)
-            elif headers[0][:9] == "DESCRIBE ":
-                self._on_describe(headers, data)
-            elif headers[0][:9] == "ANNOUNCE ":
-                self._on_announce(headers, data)
-            elif headers[0][:14] == "GET_PARAMETER ":
-                self._on_get_parameter(headers, data)
-            elif headers[0][:14] == "SET_PARAMETER ":
-                self._on_set_parameter(headers, data)
-            elif headers[0][:6] == "SETUP ":
-                self._on_setup(headers, data)
-            elif headers[0][:5] == "PLAY ":
-                self._on_play(headers, data)
-            elif headers[0][:6] == "PAUSE ":
-                self._on_pause(headers, data)
-            elif headers[0][:7] == "RECORD ":
-                self._on_record(headers, data)
-            elif headers[0][:9] == "REDIRECT ":
-                self._on_redirect(headers, data)
-            elif headers[0][:9] == "TEARDOWN ":
-                self._on_teardown(headers, data)
+            else:
+                if self._auth:
+                    self._auth.verify(self._header(headers, 'Authorization'))
+                if headers[0][:9] == "DESCRIBE ":
+                    self._on_describe(headers, data)
+                elif headers[0][:9] == "ANNOUNCE ":
+                    self._on_announce(headers, data)
+                elif headers[0][:14] == "GET_PARAMETER ":
+                    self._on_get_parameter(headers, data)
+                elif headers[0][:14] == "SET_PARAMETER ":
+                    self._on_set_parameter(headers, data)
+                elif headers[0][:6] == "SETUP ":
+                    self._on_setup(headers, data)
+                elif headers[0][:5] == "PLAY ":
+                    self._on_play(headers, data)
+                elif headers[0][:6] == "PAUSE ":
+                    self._on_pause(headers, data)
+                elif headers[0][:7] == "RECORD ":
+                    self._on_record(headers, data)
+                elif headers[0][:9] == "REDIRECT ":
+                    self._on_redirect(headers, data)
+                elif headers[0][:9] == "TEARDOWN ":
+                    self._on_teardown(headers, data)
+        except AuthenticationException as exception:
+            data.outb = str.encode(f'{exception}') + \
+                self._sequence_number(headers) + \
+                str.encode('\r\n')
         except:  # noqa # pylint: disable=bare-except
             data.outb = str.encode('RTSP/1.0 400 Bad Request\r\n') + \
                 self._sequence_number(headers) + \
