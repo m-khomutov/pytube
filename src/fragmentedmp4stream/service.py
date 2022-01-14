@@ -147,7 +147,8 @@ class Service:
               "-r(--root) files directory(req)\n\t"
               "-s(--segment) segment duration floor\n\t"
               "-c(--cache) cache segmentation as .*.cache files\n\t"
-              "-a(--auth) user:password@realm\n\t"
+              "-b(--basic) user:password@realm (use Basic Authorization)\n\t"
+              "-d(--digest) user:password@realm (use Digest Authorization)\n\t"
               "-v(--verb) be verbose\n\t"
               "-h(--help) this help")
 
@@ -176,12 +177,13 @@ def start(argv):
     """Program start point"""
     try:
         opts, args = getopt.getopt(argv,
-                                   "hp:r:s:a:cv",
+                                   "hp:r:s:b:d:cv",
                                    ["help",
                                     "ports=",
                                     "root=",
                                     "segment=",
-                                    "auth=",
+                                    "basic=",
+                                    "digest=",
                                     "cache",
                                     "verb"])
         if args:
@@ -206,8 +208,10 @@ def start(argv):
                 params['root'] = arg
             elif opt in ('-s', '--segment'):
                 params['segment'] = float(arg)
-            elif opt in ('-a', '--auth'):
-                params['auth'] = arg
+            elif opt in ('-b', '--basic'):
+                params['basic'] = arg
+            elif opt in ('-d', '--digest'):
+                params['digest'] = arg
             elif opt in ('-c', '--cache'):
                 params['cache'] = True
             elif opt in ('-v', '--verb'):

@@ -2,7 +2,7 @@
 import os
 from datetime import datetime
 from .session import Session as RtspSession
-from ..authentication import Authentication, AuthenticationException
+from ..authentication import AuthenticationContainer, Authentication, AuthenticationException
 
 
 class Connection:
@@ -34,8 +34,9 @@ class Connection:
         self._verbal = params.get("verb", False)
         self._address = address
         print(f'RTSP connect from {self._address}')
+        self._auth = None
         try:
-            self._auth = Authentication.make(params.get('auth', ''))
+            self._auth = AuthenticationContainer(params.get('basic'), params.get('digest'))
         except ValueError:
             self._auth = None
 
@@ -72,7 +73,7 @@ class Connection:
                 self._on_options(headers, data)
             else:
                 if self._auth:
-                    self._auth.verify(self._header(headers, 'Authorization'))
+                    self._auth.verify(self._header(headers, 'Authorization'), headers[0].split()[0])
                 if headers[0][:9] == "DESCRIBE ":
                     self._on_describe(headers, data)
                 elif headers[0][:9] == "ANNOUNCE ":

@@ -25,13 +25,14 @@ if __name__ == "__main__":
 * -r(--root) files directory(required) - path to seek required mp4 file
 * -s(--segment) segment duration sec.(def. *6*) - floor limit of segment duration
 * -c(--cache) cache segmentation - save segmentation as .*.cache files
-* -a(--auth) user:password@realm
+* -b(--basic) user:password@realm (use Basic Authorization)
+* -d(--digest) user:password@realm (use Digest Authorization)
 * -v(--verb) be verbose (show structure of required mp4 file)
 * -h(--help) this help
 
 **installation**
 
-`pip install fragmented-mp4stream-pkg==0.0.3`
+`pip install fragmented-mp4stream-pkg==0.0.4`
 
 **subtitles**
 
@@ -72,8 +73,18 @@ if __name__ == "__main__":
   >`rtsp://ip:rtsp_port/filename_without_extension`
 
 **autorization**
+
 Supports Basic and Digest authorization. A specific authorization can be setup or both.
-If both, the order in WWW-Authorization is that of setup.
+
+**rtsp stream**
+
+Supports trick play:
+* reverse
+* scaling
+* seeking
+
+Supports parameters
+* position - returns asset position timestamp 
 
 **example1**
 
