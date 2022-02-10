@@ -2,13 +2,13 @@
 import socket
 import selectors
 import types
-import threading
+import multiprocessing
 import time
 import logging
 from .connection import Connection as RtspConnection
 
 
-class Service(threading.Thread):
+class Service(multiprocessing.Process):
     """Manages RTSP protocol network activity"""
     _running = True
     _connections = {}
@@ -17,7 +17,7 @@ class Service(threading.Thread):
         super().__init__()
         self._bind_address = bind_address
         self._params = params
-        self._lock = threading.Lock()
+        self._lock = multiprocessing.Lock()
 
     def run(self) -> None:
         """Starts managing RTSP protocol network activity"""
@@ -34,29 +34,31 @@ class Service(threading.Thread):
         selector.register(accept_sock, selectors.EVENT_READ, data=None)
         logging.info('Ok')
         while self._is_running():
-            for key, mask in selector.select(timeout=.01):
-                if key.data is None:
-                    sock, address = key.fileobj.accept()
-                    sock.setblocking(False)
-                    selector.register(sock,
-                                      selectors.EVENT_READ | selectors.EVENT_WRITE,
-                                      types.SimpleNamespace(addr=address, inb=b'', outb=b''))
-                    self._connections[address] = RtspConnection(address, self._params)
-                else:
-                    try:
-                        self._on_event(key, mask)
-                    except:  # noqa # pylint: disable=bare-except
-                        selector.unregister(key.fileobj)
-                        key.fileobj.close()
-                        del self._connections[key.data.addr]
-                        print('connection to', key.data.addr, 'closed')
+            try:
+                for key, mask in selector.select(timeout=.01):
+                    if key.data is None:
+                        sock, address = key.fileobj.accept()
+                        sock.setblocking(False)
+                        selector.register(sock,
+                                          selectors.EVENT_READ | selectors.EVENT_WRITE,
+                                          types.SimpleNamespace(addr=address, inb=b'', outb=b''))
+                        self._connections[address] = RtspConnection(address, self._params)
+                    else:
+                        try:
+                            self._on_event(key, mask)
+                        except:  # noqa # pylint: disable=bare-except
+                            selector.unregister(key.fileobj)
+                            key.fileobj.close()
+                            del self._connections[key.data.addr]
+                            print('connection to', key.data.addr, 'closed')
+            except KeyboardInterrupt:
+                self._stop()
         accept_sock.close()
         selector.close()
 
     def join(self, timeout=None) -> None:
-        """Stops service in thread-safe manner"""
-        with self._lock:
-            self._running = False
+        """Implements service thread-safe stop"""
+        self._stop()
         if super().is_alive():
             super().join(timeout)
 
@@ -64,6 +66,11 @@ class Service(threading.Thread):
         """Verifies running process"""
         with self._lock:
             return self._running
+
+    def _stop(self):
+        """Stops service in thread-safe manner"""
+        with self._lock:
+            self._running = False
 
     def _on_event(self, key, mask):
         """Manages event read/write on socket"""
