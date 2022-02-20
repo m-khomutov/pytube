@@ -1,15 +1,18 @@
 """generates fragmented MP4 format"""
 from .atom.atom import Box, FullBox
 from .atom import trex, stco, stsc, mfhd, stts, mdat, trun, tfhd, stsz
+from .adaptation_set import AdaptationSet
 
 
 class Writer:
     """Fragmented MP4 format generator"""
-    def __init__(self, reader):
+    def __init__(self, reader, **kwargs):
         self.last_chunk = False
         self._sequence_number = 0
+        self._initializer = {}
         self._reader = reader
-        self._initializer = self._set_ftyp() + self._set_moov()
+        self._initializer = self._set_ftyp(kwargs.get('brands')) + self._set_moov()
+        self.adaptation_set.segment_url = kwargs.get('segment_url')
         self.first_video_frame = trun.Frame()
 
     @property
@@ -30,10 +33,12 @@ class Writer:
     def __iter__(self):
         return self
 
-    def _set_ftyp(self):
+    def _set_ftyp(self, brands):
         """get ftyp atom from MP4 reader"""
         try:
             ftyp = self._reader.find_box('ftyp')[0]
+            if brands:
+                ftyp.set_compatible_brands(set(brands))
         except IndexError as index_error:
             raise SyntaxError("ftyp is not found") from index_error
         self.base_offset = ftyp.full_size()
@@ -46,47 +51,53 @@ class Writer:
         self._stts_params = {}  # (track_id, hdlr, stts)
         stts_params_key = 1
         for track in self._reader.find_box('trak'):
-            track_box = Box(type='trak')
-            tkhd = track.find_inner_boxes('tkhd')[0]
-            track_box.add_inner_box(tkhd)
-            track_box.add_inner_box(Box(type='mdia'))
-            track_box.add_inner_box(track.find_inner_boxes('mdhd')[0], 'mdia')
-            hdlr = track.find_inner_boxes('hdlr')[0]
-            if hdlr.handler_type == 'vide':  # should go first - to calculate chunk duration
-                self._stts_params[0] = (tkhd.track_id,
-                                        hdlr.handler_type,
-                                        track.find_inner_boxes('stts')[0])
-            elif hdlr.handler_type == 'soun' or hdlr.handler_type == 'text':
-                self._stts_params[stts_params_key] = (tkhd.track_id,
-                                                      hdlr.handler_type,
-                                                      track.find_inner_boxes('stts')[0])
+            moov.add_inner_box(self._set_track(track, stts_params_key))
+            if stts_params_key in self._stts_params.keys():
                 stts_params_key += 1
-            track_box.add_inner_box(hdlr, 'mdia')
-            track_box.add_inner_box(Box(type='minf'), 'mdia')
-            if hdlr.handler_type == 'vide':
-                track_box.add_inner_box(track.find_inner_boxes('vmhd')[0], 'minf')
-            elif hdlr.handler_type == 'soun':
-                track_box.add_inner_box(track.find_inner_boxes('smhd')[0], 'minf')
-            elif hdlr.handler_type == 'text':
-                track_box.add_inner_box(FullBox(type='nmhd'), 'minf')
-            track_box.add_inner_box(Box(type='dinf'), 'minf')
-            track_box.add_inner_box(track.find_inner_boxes('dref')[0], 'dinf')
-            track_box.add_inner_box(Box(type='stbl'), 'minf')
-            track_box.add_inner_box(stts.Box(), 'stbl')
-            stsd_box = track.find_inner_boxes('stsd')
-            if stsd_box:
-                stsd_box[0].normalize()
-                track_box.add_inner_box(stsd_box[0], 'stbl')
-            track_box.add_inner_box(stsz.Box(), 'stbl')
-            track_box.add_inner_box(stsc.Box(), 'stbl')
-            track_box.add_inner_box(stco.Box(), 'stbl')
-            moov.add_inner_box(track_box)
         moov.add_inner_box(Box(type='mvex'))
         for key in sorted(self._stts_params.keys()):
             track_id = self._stts_params[key][0]
             moov.add_inner_box(trex.Box(track_id=track_id), 'mvex')
         self.base_offset += moov.full_size()
         return moov.to_bytes()
+
+    def _set_track(self, initial_track, stts_params_key):
+        track_box = Box(type='trak')
+        tkhd = initial_track.find_inner_boxes('tkhd')[0]
+        track_box.add_inner_box(tkhd)
+        track_box.add_inner_box(Box(type='mdia'))
+        mdhd_box = initial_track.find_inner_boxes('mdhd')[0]
+        track_box.add_inner_box(mdhd_box, 'mdia')
+        hdlr = initial_track.find_inner_boxes('hdlr')[0]
+        if hdlr.handler_type == 'vide':  # should go first - to calculate chunk duration
+            self.adaptation_set = AdaptationSet(tkhd, mdhd_box)
+            self._stts_params[0] = (tkhd.track_id,
+                                    hdlr.handler_type,
+                                    initial_track.find_inner_boxes('stts')[0])
+        elif hdlr.handler_type == 'soun' or hdlr.handler_type == 'text':
+            self._stts_params[stts_params_key] = (tkhd.track_id,
+                                                  hdlr.handler_type,
+                                                  initial_track.find_inner_boxes('stts')[0])
+        track_box.add_inner_box(hdlr, 'mdia')
+        track_box.add_inner_box(Box(type='minf'), 'mdia')
+        if hdlr.handler_type == 'vide':
+            track_box.add_inner_box(initial_track.find_inner_boxes('vmhd')[0], 'minf')
+        elif hdlr.handler_type == 'soun':
+            track_box.add_inner_box(initial_track.find_inner_boxes('smhd')[0], 'minf')
+        elif hdlr.handler_type == 'text':
+            track_box.add_inner_box(FullBox(type='nmhd'), 'minf')
+        track_box.add_inner_box(Box(type='dinf'), 'minf')
+        track_box.add_inner_box(initial_track.find_inner_boxes('dref')[0], 'dinf')
+        track_box.add_inner_box(Box(type='stbl'), 'minf')
+        track_box.add_inner_box(stts.Box(), 'stbl')
+        stsd_box = initial_track.find_inner_boxes('stsd')
+        if stsd_box:
+            stsd_box[0].normalize()
+            track_box.add_inner_box(stsd_box[0], 'stbl')
+        track_box.add_inner_box(stsz.Box(), 'stbl')
+        track_box.add_inner_box(stsc.Box(), 'stbl')
+        track_box.add_inner_box(stco.Box(), 'stbl')
+        return track_box
 
     def _set_moof(self):
         moof_box = Box(type='moof')

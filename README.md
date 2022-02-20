@@ -12,13 +12,13 @@ if __name__ == "__main__":
     main(sys.argv[1:])
 ```
 
-**videocodec support**
+**videocodecs**
 * h264
 * h265
 
-**protocol support**
-* http(fmp4, hls)
-* rtsp
+**protocols**
+* http(fMP4, HLS, MPEG-dash)
+* rtsp(tcp rtp-interleaved)
 
 **parameters**
 * -p(--ports) ports[http, rtsp] to bind(def. *4555*,*4556*)
@@ -67,14 +67,16 @@ if __name__ == "__main__":
   >`http://ip:http_port/`
 * fragmented mp4
   >`http://ip:http_port/filename_without_extension`
-* hls container with fragmented mp4
-  >`http://ip:http_port/filename_with_m3u_extension`
+* HLS with fragmented mp4
+  >`http://ip:http_port/filename_with_m3u[8]_extension`
+* MPEG-dash with fragmented mp4 (interleaved)
+  >`http://ip:http_port/filename_with_mpd_extension`
 * rtsp
   >`rtsp://ip:rtsp_port/filename_without_extension`
 
 **autorization**
 
-Supports Basic and Digest authorization. A specific authorization can be setup or both.
+Supports Basic and Digest authorization (specific or both).
 
 **rtsp stream**
 
@@ -91,7 +93,7 @@ Supports parameters
 * service
   * python3 mp4stream.py -r ~/video/
 * client
-  * ffplay http://192.168.250.229:4555/
+  *  curl --request GET http://192.168.250.229:4555/ | jq .
     >mp4 file list of ~/video/
     ```json
     [
@@ -117,9 +119,17 @@ Supports parameters
   * python3 mp4stream.py -r ~/video/
 * client
   * ffplay http://192.168.250.229:4555/toystory.m3u
-    >`~/video/toystory20.mp4 - fragmented mp4 in hls container`
+    >`~/video/toystory.mp4 - HLS with fragmented mp4`
 
 **example4**
+
+* service
+  * python3 mp4stream.py -r ~/video/
+* client
+  * vlc http://192.168.250.229:4555/toystory.mpd
+    >`~/video/toystory.mp4 - MPEG_dash with fragmented mp4`
+
+**example5**
 
 * service
   * python3 mp4stream.py -r ~/video/

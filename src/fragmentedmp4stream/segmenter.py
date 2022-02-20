@@ -41,7 +41,9 @@ class SegmentMaker:
     """Prepares stream as a set of segments"""
     def __init__(self, filename, path, server_address, **kwargs):
         self._filename = filename
+        self.target_duration = .0
         self.segment_url = 'http://'+platform.node()+':'+str(server_address[1])+path
+        kwargs['segment_url'] = path
         self._segment_duration = kwargs.get('segment_duration', 6.)
         self.media_segments = []
         if os.path.isfile(self._filename+'.cache'):
@@ -50,7 +52,11 @@ class SegmentMaker:
         verbal = kwargs.get('verbal', False)
         if verbal:
             logging.info(self.reader)
-        self._prepare_playlist()
+        self._prepare_playlist(**kwargs)
+
+    @property
+    def duration(self):
+        return self.reader.media_duration_sec
 
     def media_playlist(self):
         """Returns prepared HLS playlist"""
@@ -75,10 +81,9 @@ class SegmentMaker:
             ret += mdat_box.to_bytes()
         return ret
 
-    def _prepare_playlist(self):
-        self.writer = Writer(self.reader)
+    def _prepare_playlist(self, **kwargs):
+        self.writer = Writer(self.reader, **kwargs)
         segment = Segment(0, .0)
-        target_duration = .0
         while True:
             try:
                 moof_box, mdat_box, duration = self.writer.fragment_moof()
@@ -86,8 +91,8 @@ class SegmentMaker:
                     segment.moof.append(moof_box)
                     segment.duration += duration
                     if segment.duration > self._segment_duration or self.writer.last_chunk is True:
-                        if target_duration < segment.duration:
-                            target_duration = segment.duration
+                        if self.target_duration < segment.duration:
+                            self.target_duration = segment.duration
                         self.media_segments.append(segment)
                         segment = Segment(segment.sequence_number + 1, .0)
                 if self.writer.last_chunk:
@@ -95,7 +100,7 @@ class SegmentMaker:
             except StopIteration:
                 break
         self._media_playlist = '#EXTM3U\n' \
-            '#EXT-X-TARGETDURATION:'+str(math.ceil(target_duration)) + \
+            '#EXT-X-TARGETDURATION:'+str(math.ceil(self.target_duration)) + \
             '\n#EXT-X-PLAYLIST-TYPE:VOD\n' + \
             '#EXT-X-MAP:URI='+self.segment_url+'_init.mp4\n'
         for segment in self.media_segments:

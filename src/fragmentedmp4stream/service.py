@@ -11,6 +11,7 @@ from .reader import Reader
 from .writer import Writer
 from .segmenter import SegmentMaker
 from .rtsp.service import Service as RtspService
+from .dash_mpd import DashMpd
 
 
 def make_handler(params):
@@ -65,20 +66,45 @@ def make_handler(params):
             except ConnectionError:
                 pass
 
+        def _stream_dash_mpd(self):
+            segment_maker = self._get_segment_maker(brands=['iso5', 'avc1', 'dash'])
+            if segment_maker:
+                mpd = str(DashMpd(self.path[1:],
+                                  segment_maker.duration,
+                                  segment_maker.target_duration,
+                                  [segment_maker.writer.adaptation_set]))
+                self.send_response(200)
+                self.send_header('Content-type', 'application/dash+xml')
+                self.send_header('Content-length', str(len(mpd)))
+                self.end_headers()
+                self.wfile.write(mpd.encode())
+            else:
+                self._reply_error(501)
+
         def _stream_media_playlist(self):
-            self.send_response(200)
-            self.send_header('Content-type', 'application/vnd.apple.mpegurl')
-            self.end_headers()
+            segment_maker = self._get_segment_maker()
+            if segment_maker:
+                playlist = segment_maker.media_playlist()
+                self.send_response(200)
+                self.send_header('Content-type', 'application/vnd.apple.mpegurl')
+                self.send_header('Content-length', str(len(playlist)))
+                self.end_headers()
+                self.wfile.write(playlist.encode())
+            else:
+                self._reply_error(501)
+
+        def _get_segment_maker(self, **kwargs):
             segment_maker = self.segment_makers.get(self.path)
             if segment_maker is None:
                 segment_maker = SegmentMaker(self._filename,
                                              self.path,
                                              self.server.server_address,
                                              segment_duration=self._segment_floor,
+                                             brands=kwargs.get('brands'),
                                              cache=self._cache,
                                              verbal=self._verbal)
                 self.segment_makers[self.path] = segment_maker
-            self.wfile.write(segment_maker.media_playlist().encode())
+            return segment_maker
 
         def _stream_segment(self):
             idx = self.path.rfind('_')
@@ -91,12 +117,14 @@ def make_handler(params):
                 return
             self.send_response(200)
             self.send_header('Content-type', 'video/mp4')
-            self.end_headers()
             if self.path[idx+1:-4] == 'init':
-                self.wfile.write(segment_maker.init())
+                body = segment_maker.init()
             else:
                 segment_number = int(self.path[idx+3:-4])
-                self.wfile.write(segment_maker.segment(segment_number))
+                body = segment_maker.segment(segment_number)
+            self.send_header('Content-length', str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
 
         def _reply_error(self, code):
             self.send_error(code)
@@ -110,22 +138,24 @@ def make_handler(params):
             elif self.path == '/':
                 self._stream_file_list()
             elif self.path.endswith(('.m4s', '.mp4')):
-                self._stream_segment()
+                try:
+                    self._stream_segment()
+                except: # noqa # pylint: disable=bare-except
+                    pass
             elif self.path.endswith('.vtt'):
                 self._stream_file(os.path.join(self._root, self.path[1:]))
             else:
-                hls = False
-                if self.path.endswith(('.m3u', '.m3u8')):
-                    if self._stream_file(os.path.join(self._root, self.path[1:])) is True:
+                extension = self.path[self.path.rfind('.'):]
+                if len(extension) > 1:
+                    if self._stream_file(os.path.join(self._root, self.path[1:])):
                         return
-                    hls = True
-                    self.path = self.path[:-4]
-                    if self.path[-1] == '.':
-                        self.path = self.path[:-1]
+                    self.path = self.path[:-1*len(extension)]
                 self._filename = os.path.join(self._root, self.path[1:]+'.mp4')
                 if os.path.isfile(self._filename):
-                    if hls:
+                    if extension in ['.m3u', '.m3u8']:
                         self._stream_media_playlist()
+                    elif extension == '.mpd':
+                        self._stream_dash_mpd()
                     else:
                         self._stream_fmp4()
                     return
