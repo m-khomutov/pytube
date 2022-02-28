@@ -42,7 +42,8 @@ class SegmentMaker:
     def __init__(self, filename, path, server_address, **kwargs):
         self._filename = filename
         self.target_duration = .0
-        self.segment_url = 'http://'+platform.node()+':'+str(server_address[1])+path
+        scheme = 'https://' if kwargs.get('is_ssl') else 'http://'
+        self.segment_url = scheme+platform.node()+':'+str(server_address[1])+path
         kwargs['segment_url'] = path
         self._segment_duration = kwargs.get('segment_duration', 6.)
         self.media_segments = []

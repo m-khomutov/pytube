@@ -17,16 +17,17 @@ if __name__ == "__main__":
 * h265
 
 **protocols**
-* http(fMP4, HLS, MPEG-dash)
+* http[s](fMP4, HLS, MPEG-dash)
 * rtsp(tcp rtp-interleaved)
 
 **parameters**
-* -p(--ports) ports[http, rtsp] to bind(def. *4555*,*4556*)
+* -p(--ports) ports[http,https,rtsp] to bind(def. *4555*,*4556*,*4557*)
 * -r(--root) files directory(required) - path to seek required mp4 file
 * -s(--segment) segment duration sec.(def. *6*) - floor limit of segment duration
 * -c(--cache) cache segmentation - save segmentation as .*.cache files
 * -b(--basic) user:password@realm (use Basic Authorization)
 * -d(--digest) user:password@realm (use Digest Authorization)
+* -k(--keys) directory with key.pem and cert.pem files (req. for https)
 * -v(--verb) be verbose (show structure of required mp4 file)
 * -h(--help) this help
 
@@ -36,7 +37,7 @@ if __name__ == "__main__":
 
 **subtitles**
 
-* Innner subtitles: track handler=``text``, type=``tx3g``. Verified with ``MPlayer``.
+* Inner subtitles: track handler=``text``, type=``tx3g``. Verified with ``MPlayer``.
 * Outer subtitles: 
   * master playlist: m3u8-file - ex.
   ```m3u
@@ -64,17 +65,17 @@ if __name__ == "__main__":
 
 **streams**
 * json list of available files
-  >`http://ip:http_port/`
+  >`http[s]://ip:http[s]_port/`
 * fragmented mp4
-  >`http://ip:http_port/filename_without_extension`
+  >`http[s]://ip:http[s]_port/filename_without_extension`
 * HLS with fragmented mp4
-  >`http://ip:http_port/filename_with_m3u[8]_extension`
+  >`http[s]://ip:http[s]_port/filename_with_m3u[8]_extension`
 * MPEG-dash with fragmented mp4 (interleaved)
-  >`http://ip:http_port/filename_with_mpd_extension`
+  >`http[s]://ip:http[s]_port/filename_with_mpd_extension`
 * rtsp
   >`rtsp://ip:rtsp_port/filename_without_extension`
 
-**autorization**
+**authorization**
 
 Supports Basic and Digest authorization (specific or both).
 
@@ -124,9 +125,9 @@ Supports parameters
 **example4**
 
 * service
-  * python3 mp4stream.py -r ~/video/
+  * python3 mp4stream.py -r ~/video/ -k ssl
 * client
-  * vlc http://192.168.250.229:4555/toystory.mpd
+  * vlc https://192.168.250.229:4556/toystory.mpd
     >`~/video/toystory.mp4 - MPEG_dash with fragmented mp4`
 
 **example5**
@@ -134,5 +135,5 @@ Supports parameters
 * service
   * python3 mp4stream.py -r ~/video/
 * client
-  * ffplay -rtsp_transport tcp rtsp://192.168.250.229:4556/toystory
+  * ffplay -rtsp_transport tcp rtsp://192.168.250.229:4557/toystory
     >`~/video/toystory.mp4 - rtsp stream`
