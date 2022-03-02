@@ -70,7 +70,7 @@ if __name__ == "__main__":
   >`http[s]://ip:http[s]_port/filename_without_extension`
 * HLS with fragmented mp4
   >`http[s]://ip:http[s]_port/filename_with_m3u[8]_extension`
-* MPEG-dash with fragmented mp4 (interleaved)
+* MPEG-dash with fragmented mp4 (multiplexed)
   >`http[s]://ip:http[s]_port/filename_with_mpd_extension`
 * rtsp
   >`rtsp://ip:rtsp_port/filename_without_extension`

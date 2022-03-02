@@ -100,7 +100,7 @@ class SegmentMaker:
                     break
             except StopIteration:
                 break
-        self._media_playlist = '#EXTM3U\n' \
+        self._media_playlist = '#EXTM3U\n#EXT-X-VERSION:5\n' \
             '#EXT-X-TARGETDURATION:'+str(math.ceil(self.target_duration)) + \
             '\n#EXT-X-PLAYLIST-TYPE:VOD\n' + \
             '#EXT-X-MAP:URI='+self.segment_url+'_init.mp4\n'

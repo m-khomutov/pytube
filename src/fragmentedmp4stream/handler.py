@@ -28,15 +28,16 @@ def handler(params):
         def _stream_file_list(self):
             self.send_response(200)
             self.send_header('Content-type', 'application/json')
-            self.end_headers()
             lst = json.dumps([f[:-4] for f in os.listdir(self._root) if f.endswith('.mp4')])
+            self.send_header('Content-length', str(len(lst)))
+            self.end_headers()
             self.wfile.write(str.encode(lst))
 
-        def _stream_file(self, filename):
+        def _stream_file(self, filename, content_type):
             if os.path.isfile(filename):
-                print('sending ', filename)
                 self.send_response(200)
-                self.send_header('Content-type', 'video/mp4')
+                self.send_header('Content-type', content_type)
+                self.send_header('Content-length', str(os.stat(filename).st_size))
                 self.end_headers()
                 file = open(filename)
                 for line in file:
@@ -90,20 +91,6 @@ def handler(params):
             else:
                 self._reply_error(501)
 
-        def _get_segment_maker(self, **kwargs):
-            segment_maker = self.segment_makers.get(self.path)
-            if segment_maker is None:
-                segment_maker = SegmentMaker(self._filename,
-                                             self.path,
-                                             self.server.server_address,
-                                             segment_duration=self._segment_floor,
-                                             brands=kwargs.get('brands'),
-                                             is_ssl=issubclass(type(self.request), ssl.SSLSocket),
-                                             cache=self._cache,
-                                             verbal=self._verbal)
-                self.segment_makers[self.path] = segment_maker
-            return segment_maker
-
         def _stream_segment(self):
             idx = self.path.rfind('_')
             if idx < 0:
@@ -124,6 +111,20 @@ def handler(params):
             self.end_headers()
             self.wfile.write(body)
 
+        def _get_segment_maker(self, **kwargs):
+            segment_maker = self.segment_makers.get(self.path)
+            if segment_maker is None:
+                segment_maker = SegmentMaker(self._filename,
+                                             self.path,
+                                             self.server.server_address,
+                                             segment_duration=self._segment_floor,
+                                             brands=kwargs.get('brands'),
+                                             is_ssl=issubclass(type(self.request), ssl.SSLSocket),
+                                             cache=self._cache,
+                                             verbal=self._verbal)
+                self.segment_makers[self.path] = segment_maker
+            return segment_maker
+
         def _reply_error(self, code):
             self.send_error(code)
             self.end_headers()
@@ -141,11 +142,11 @@ def handler(params):
                 except: # noqa # pylint: disable=bare-except
                     pass
             elif self.path.endswith('.vtt'):
-                self._stream_file(os.path.join(self._root, self.path[1:]))
+                self._stream_file(os.path.join(self._root, self.path[1:]), 'text/vtt')
             else:
                 extension = self.path[self.path.rfind('.'):]
                 if len(extension) > 1:
-                    if self._stream_file(os.path.join(self._root, self.path[1:])):
+                    if self._stream_file(os.path.join(self._root, self.path[1:]), 'text/plain'):
                         return
                     self.path = self.path[:-1*len(extension)]
                 self._filename = os.path.join(self._root, self.path[1:]+'.mp4')

@@ -3,7 +3,6 @@ import getopt
 import logging
 import multiprocessing
 import os
-import platform
 import ssl
 import sys
 from .handler import handler
@@ -95,7 +94,7 @@ def start(argv):
                                     "basic=",
                                     "digest=",
                                     "cache",
-                                    "keys",
+                                    "keys=",
                                     "verb"])
         if args:
             Service.print_options()
