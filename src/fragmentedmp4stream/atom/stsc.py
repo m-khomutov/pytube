@@ -57,7 +57,9 @@ class Entry:
 @full_box_derived
 class Box(FullBox):
     """Sample-to-chunk, partial data-offset information"""
-    entries = []
+    def __init__(self, *args, **kwargs):
+        self.entries = []
+        super().__init__(*args, **kwargs)
 
     def __repr__(self):
         ret = super().__repr__() + \

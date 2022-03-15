@@ -11,8 +11,10 @@ def atom_type():
 @full_box_derived
 class Box(FullBox):
     """Video media header box"""
-    _graphics_mode = 0
-    _color_channels = []
+    def __init__(self, *args, **kwargs):
+        self._graphics_mode = 0
+        self._color_channels = []
+        super().__init__(*args, **kwargs)
 
     def __repr__(self):
         return super().__repr__() + " graphics mode:" + str(self._graphics_mode) + \

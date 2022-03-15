@@ -13,11 +13,11 @@ def atom_type():
     return 'stsd'
 
 
-class VideoCodecType(IntEnum):
-    """Supported codec enumeration"""
-    UNKNOWN = 0
-    AVC = 1
-    HEVC = 2
+VideoCodecType: IntEnum = IntEnum('VideoCodecType', ('UNKNOWN',
+                                                     'AVC',
+                                                     'HEVC',
+                                                     )
+                                  )
 
 
 class SampleEntry(Atom):
@@ -416,8 +416,10 @@ class TextSampleEntry(SampleEntry):
 @full_box_derived
 class Box(FullBox):
     """Sample descriptions (codec types, initialization etc.)"""
-    entries = []
-    video_stream_type = VideoCodecType.UNKNOWN
+    def __init__(self, *args, **kwargs):
+        self.entries = []
+        self.video_stream_type = VideoCodecType.UNKNOWN
+        super().__init__(*args, **kwargs)
 
     def __init__(self, *args, **kwargs):
         self.handler = kwargs.get('hdlr', None)

@@ -72,7 +72,6 @@ class BasicAuthentication(Authentication):
 
 class DigestAuthentication(Authentication):
     """Digest HTTP Authentication"""
-
     def __init__(self, credentials: str) -> None:
         super().__init__(credentials)
         username, password = self.credentials.split(':')

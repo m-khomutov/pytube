@@ -10,10 +10,9 @@ from .connection import Connection as RtspConnection
 
 class Service(multiprocessing.Process):
     """Manages RTSP protocol network activity"""
-    _running = True
-    _connections = {}
-
     def __init__(self, bind_address, params):
+        self._running = True
+        self._connections = {}
         super().__init__()
         self._bind_address = bind_address
         self._params = params

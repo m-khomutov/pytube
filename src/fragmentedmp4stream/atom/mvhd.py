@@ -13,13 +13,15 @@ def atom_type():
 @full_box_derived
 class Box(FullBox):
     """Movie header, overall declarations"""
-    time = (0, 0)
-    timescale = 0
-    duration = 0
-    rate = 0
-    volume = 0
-    matrix = []
-    next_track_id = 0
+    def __init__(self, *args, **kwargs):
+        self.time = (0, 0)
+        self.timescale = 0
+        self.duration = 0
+        self.rate = 0
+        self.volume = 0
+        self.matrix = []
+        self.next_track_id = 0
+        super().__init__(*args, **kwargs)
 
     def __repr__(self):
         ret = super().__repr__() + \

@@ -22,9 +22,9 @@ class AUHeaderSimpleSection:
 class InterleavedHeader:
     """RTP (+interleaved) header: rfc7826"""
     _first_byte = bytes([0x80])
-    _sequence_number = 0
 
     def __init__(self, payload_type, channel, synchro_source):
+        self._sequence_number = 0
         self._payload_type = payload_type
         self._interleaved_sign = bytes([0x24, channel])
         self._synchro_source = synchro_source.to_bytes(4, 'big')
@@ -39,7 +39,7 @@ class InterleavedHeader:
            Data size includes media data + 12 bytes of rtp header"""
         ret = self._interleaved_sign + \
             (data_size+12).to_bytes(2, 'big') +\
-            self._first_byte + \
+            self.__class__._first_byte + \
             (marker << 7 | self._payload_type).to_bytes(1, 'big') + \
             self._sequence_number.to_bytes(2, 'big') + \
             timestamp.to_bytes(4, 'big') + \
@@ -131,9 +131,8 @@ class HevcFragmentMaker(FragmentMaker):  # pylint: disable=too-few-public-method
 
 class TrickPlay:
     """Parameters of trick play mode"""
-    _scale = 1
-
     def __init__(self, applicable=False):
+        self.scale = 1
         self._applicable = applicable
 
     @property
@@ -164,12 +163,11 @@ class TrickPlay:
 
 class Streamer:
     """Streams media data in RTP interleaved protocol"""
-    _last_frame_time_sec, _frame_duration_sec = 0., 0.
-    _position = 0.
-    _rtp_header = None
-    _decoding_time = random.randint(0, 0xffffffff)
-
     def __init__(self, payload_type, trick_play=TrickPlay()):
+        self._last_frame_time_sec, self._frame_duration_sec = 0., 0.
+        self._position = 0.
+        self._rtp_header = None
+        self._decoding_time = random.randint(0, 0xffffffff)
         self._payload_type = payload_type
         self.trick_play = trick_play
 

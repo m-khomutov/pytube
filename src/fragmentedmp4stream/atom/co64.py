@@ -13,7 +13,9 @@ def atom_type():
 @full_box_derived
 class Box(FullBox):
     """64-bit chunk offset box"""
-    entries = []
+    def __init__(self, *args, **kwargs):
+        self.entries = []
+        super().__init__(*args, **kwargs)
 
     def __repr__(self):
         return super().__repr__() + ' offsets:[' + ' '.join([str(k) for k in self.entries]) + ']'

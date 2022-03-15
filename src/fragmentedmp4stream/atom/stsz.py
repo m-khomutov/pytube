@@ -10,8 +10,10 @@ def atom_type():
 @full_box_derived
 class Box(FullBox):
     """Sample table box"""
-    sample_size, sample_count = 0, 0
-    entries = []
+    def __init__(self, *args, **kwargs):
+        self.sample_size, self.sample_count = 0, 0
+        self.entries = []
+        super().__init__(*args, **kwargs)
 
     def __repr__(self):
         ret = super().__repr__()

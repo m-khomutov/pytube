@@ -11,11 +11,13 @@ def atom_type():
 @full_box_derived
 class Box(FullBox):
     """Track header box"""
-    timing = (0, 0)
-    track_id, duration = 0, 0
-    track_info = (0, 0, 0)  # layer alternative_group volume
-    matrix = []
-    width, height = 0, 0
+    def __init__(self, *args, **kwargs):
+        self.timing = (0, 0)
+        self.track_id, self.duration = 0, 0
+        self.track_info = (0, 0, 0)  # layer alternative_group volume
+        self.matrix = []
+        self.width, self.height = 0, 0
+        super().__init__(*args, **kwargs)
 
     def __repr__(self):
         return super().__repr__() + \

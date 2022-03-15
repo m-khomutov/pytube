@@ -4,7 +4,9 @@ from .atom import Box as Atom
 
 class Box(Atom):
     """Pixel aspect ratio box"""
-    h_spacing, v_spacing = 0, 0
+    def __init__(self, *args, **kwargs):
+        self.h_spacing, self.v_spacing = 0, 0
+        super().__init__(*args, **kwargs)
 
     def __repr__(self):
         return super().__repr__() +\

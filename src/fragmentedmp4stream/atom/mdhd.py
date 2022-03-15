@@ -12,11 +12,13 @@ def atom_type():
 @full_box_derived
 class Box(FullBox):
     """Media header box, overall information about the media"""
-    creation_time = 0
-    modification_time = 0
-    timescale = 0
-    duration = 0
-    language = ''
+    def __init__(self, *args, **kwargs):
+        self.creation_time = 0
+        self.modification_time = 0
+        self.timescale = 0
+        self.duration = 0
+        self.language = ''
+        super().__init__(*args, **kwargs)
 
     def __repr__(self):
         return super().__repr__() + \

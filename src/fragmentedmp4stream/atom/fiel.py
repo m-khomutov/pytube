@@ -20,7 +20,9 @@ from .atom import Box as Atom
 class Box(Atom):
     """Determines field display order. The first byte specifies the field count,
       the second byte specifies the field ordering"""
-    video_field_order = 0
+    def __init__(self, *args, **kwargs):
+        self.video_field_order = 0
+        super().__init__(*args, **kwargs)
 
     def __repr__(self):
         return super().__repr__() + " videoFieldOrder:" + str(self.video_field_order)

@@ -4,9 +4,8 @@ from .atom import FullBox, full_box_derived
 
 class SampleFlags:
     """Sample flags field in sample fragments"""
-    _is_depended_on, _has_redundancy, _padding_value, _degradation_priority = 0, 0, 0, 0
-
     def __init__(self, depends_on, is_difference):
+        self._is_depended_on, self._has_redundancy, self._padding_value, self._degradation_priority = 0, 0, 0, 0
         self._depends_on, self._is_difference_sample = depends_on, is_difference
 
     def __str__(self):

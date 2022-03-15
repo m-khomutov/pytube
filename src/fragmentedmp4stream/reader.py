@@ -12,9 +12,8 @@ class ClockRate(IntEnum):
 
 class SamplesStscInfo:
     """Sample to chunk information"""
-    _chunk_index, _sample_index = 0, 0
-
     def __init__(self, entries):
+        self._chunk_index, self._sample_index = 0, 0
         self._chunks = []  # each chunk contains number of samples
         for i, entry in enumerate(entries):
             if i > 0:
@@ -96,9 +95,8 @@ class SamplesStszInfo:
 
 class SamplesSttsInfo:
     """Decoding Time to sample"""
-    _entry_index, _delta_index = 0, 0
-
     def __init__(self, entries):
+        self._entry_index, self._delta_index = 0, 0
         self._entries = entries
 
     def current_decoding_time(self):
@@ -128,9 +126,8 @@ class SamplesSttsInfo:
 
 class SamplesCttsInfo:
     """Composition Time to sample"""
-    _offset_index, _entry_index = 0, 0
-
     def __init__(self):
+        self._offset_index, self._entry_index = 0, 0
         self.entries = []
 
     def current_composition_time(self):
@@ -164,11 +161,10 @@ class SamplesCttsInfo:
 
 class SamplesInfo:  # pylint: disable=too-many-instance-attributes
     """Composite information of sample atoms"""
-    offset, size, unit_size_bytes = 0, 0, 0
-    timescale_multiplier = 1
-    _info_depleted = False
-
     def __init__(self):
+        self.offset, self.size, self.unit_size_bytes = 0, 0, 0
+        self.timescale_multiplier = 1
+        self._info_depleted = False
         self.stco = SamplesStcoInfo([])
         self.stsz = SamplesStszInfo([])
         self.stts = SamplesSttsInfo([])
@@ -239,9 +235,8 @@ class SamplesInfo:  # pylint: disable=too-many-instance-attributes
 
 class Reader:
     """Reads atom from MP4 format file"""
-    media_duration_sec = 0.
-
     def __init__(self, filename):
+        self.media_duration_sec = 0.
         self.boxes = []
         self.samples_info = {}
         self.media_header = {}

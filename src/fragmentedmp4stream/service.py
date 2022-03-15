@@ -77,7 +77,7 @@ class Service:
         except KeyboardInterrupt:
             pass
         http_server.server_close()
-        https_server.join()
+        https_server and https_server.join()
         rtsp_server.join()
         logging.info('Stopping')
 

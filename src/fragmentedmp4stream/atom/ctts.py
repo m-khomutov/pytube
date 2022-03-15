@@ -43,7 +43,9 @@ class Entry:
 @full_box_derived
 class Box(FullBox):
     """Composition time to sample box"""
-    entries = []
+    def __init__(self, *args, **kwargs):
+        self.entries = []
+        super().__init__(*args, **kwargs)
 
     def __repr__(self):
         return super().__repr__() + " entries:" + \

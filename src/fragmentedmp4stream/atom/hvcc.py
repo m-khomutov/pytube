@@ -113,13 +113,15 @@ class ConfigSet:
 
 class Box(atom.Box):
     """An MPEG-4 decoder configuration atom"""
-    general_config = b''
-    min_spacial_segmentation = 0
-    chroma = b''
-    bit_depth = b''
-    frame_rate = 0
-    max_sub_layers = 0
-    config_sets = []
+    def __init__(self, *args, **kwargs):
+        self.general_config = b''
+        self.min_spacial_segmentation = 0
+        self.chroma = b''
+        self.bit_depth = b''
+        self.frame_rate = 0
+        self.max_sub_layers = 0
+        self.config_sets = []
+        super().__init__(*args, **kwargs)
 
     def __repr__(self):
         ret = super().__repr__()

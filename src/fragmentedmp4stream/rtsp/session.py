@@ -66,12 +66,11 @@ class PlayRange:
 
 class Session:
     """RTSP Session parameters"""
-    _session_id = ''
-    _streamers = {}
-    _sdp = ''
-    _play_range = None
-
     def __init__(self, content_base, filename, verbal):
+        self._session_id = ''
+        self._streamers = {}
+        self._sdp = ''
+        self._play_range = None
         self._content_base = content_base
         self._reader = Reader(filename)
         self._verbal = verbal

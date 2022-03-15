@@ -10,7 +10,9 @@ def atom_type():
 @full_box_derived
 class Box(FullBox):
     """Chunk offset, partial data-offset information"""
-    entries = []
+    def __init__(self, *args, **kwargs):
+        self.entries = []
+        super().__init__(*args, **kwargs)
 
     def __repr__(self):
         ret = super().__repr__() + ' offsets:[' + \

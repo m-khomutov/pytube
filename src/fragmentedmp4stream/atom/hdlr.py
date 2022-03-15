@@ -12,8 +12,10 @@ def atom_type():
 @full_box_derived
 class Box(FullBox):
     """The media handler type box"""
-    handler_type = ''
-    name = ''
+    def __init__(self, *args, **kwargs):
+        self.handler_type = ''
+        self.name = ''
+        super().__init__(*args, **kwargs)
 
     def __repr__(self):
         return super().__repr__() + f" handler type:{self.handler_type} name:{self.name}"

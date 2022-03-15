@@ -16,9 +16,8 @@ class Flags(IntFlag):
 
 class OptionalFields:
     """Track fragment header optional fields"""
-    _size = 0
-
     def __init__(self, flags, **kwargs):
+        self._size = 0
         self._flags = flags
         file = kwargs.get("file", None)
         if file is not None:
@@ -95,10 +94,9 @@ class OptionalFields:
 @full_box_derived
 class Box(FullBox):
     """Track fragment header box"""
-    track_id = 0
-    _optional_fields = None
-
     def __init__(self, *args, **kwargs):
+        self.track_id = 0
+        self._optional_fields = None
         super().__init__(*args, **kwargs)
         self.size = 16 + len(self._optional_fields)
 

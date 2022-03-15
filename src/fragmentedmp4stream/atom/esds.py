@@ -178,7 +178,9 @@ class SLConfigDescriptor(Descriptor):
 @full_box_derived
 class Box(FullBox):
     """An MPEG-4 elementary stream descriptor box"""
-    descriptors = []
+    def __init__(self, *args, **kwargs):
+        self.descriptors = []
+        super().__init__(*args, **kwargs)
 
     def __repr__(self):
         return super().__repr__() + \

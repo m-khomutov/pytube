@@ -5,7 +5,9 @@ from .atom import FullBox, full_box_derived
 @full_box_derived
 class Box(FullBox):
     """movie fragment header box"""
-    sequence_number = 0
+    def __init__(self, *args, **kwargs):
+        self.sequence_number = 0
+        super().__init__(*args, **kwargs)
 
     def __repr__(self):
         return super().__repr__() + f" sequence num:{self.sequence_number}"

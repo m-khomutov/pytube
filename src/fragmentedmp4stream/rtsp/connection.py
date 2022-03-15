@@ -7,9 +7,6 @@ from ..authentication import AuthenticationContainer, Authentication, Authentica
 
 class Connection:
     """Manages RTSP protocol network client activity"""
-    _session = None
-    _playing = False
-
     @staticmethod
     def _datetime():
         return str.encode('Date: ' +
@@ -30,6 +27,8 @@ class Connection:
         return ret[0] if ret else 'Scale: 0'
 
     def __init__(self, address, params):
+        self._session = None
+        self._playing = False
         self._root = params.get("root", ".")
         self._verbal = params.get("verb", False)
         self._address = address

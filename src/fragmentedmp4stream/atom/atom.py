@@ -171,8 +171,10 @@ def full_box_derived(cls):
 
 class FullBox(Box):
     """A box with a version number and flags field"""
-    version = 0
-    flags = 0
+    def __init__(self, *args, **kwargs):
+        self.version = 0
+        self.flags = 0
+        super().__init__(*args, **kwargs)
 
     def __repr__(self):
         ret = super().__repr__() + f" version:{self.version} flags:{self.flags:x}"

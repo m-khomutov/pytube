@@ -7,12 +7,14 @@ from . import atom
 
 class Box(atom.Box):
     """An MPEG-4 decoder configuration atom"""
-    initial_parameters = 0
-    _unit_len = 0
-    sps = []
-    pps = []
-    appendix = b''
-    _sprop_parameter_sets = ''
+    def __init__(self, *args, **kwargs):
+        self.initial_parameters = 0
+        self._unit_len = 0
+        self.sps = []
+        self.pps = []
+        self.appendix = b''
+        self._sprop_parameter_sets = ''
+        super().__init__(*args, **kwargs)
 
     def __repr__(self):
         ret = super().__repr__() + " version:" + str(self.initial_parameters[0]) + \

@@ -9,9 +9,11 @@ def atom_type():
 
 class Box(Atom):
     """File type and compatibility box"""
-    major_brand = ''
-    minor_version = 0
-    _compatible_brands = set()
+    def __init__(self, *args, **kwargs):
+        self.major_brand = ''
+        self.minor_version = 0
+        self._compatible_brands = set()
+        super().__init__(*args, **kwargs)
 
     def __repr__(self):
         ret = super().__repr__() + \

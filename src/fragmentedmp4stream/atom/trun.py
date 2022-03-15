@@ -6,9 +6,8 @@ from .atom import FullBox, full_box_derived
 
 class FrameIter:
     """Chunk iterator of data frame """
-    _chunk_offset = 0
-
     def __init__(self, data, size, unit_size_bytes):
+        self._chunk_offset = 0
         self._data = data
         self.size = size
         self._unit_size_bytes = unit_size_bytes
@@ -31,12 +30,11 @@ class FrameIter:
 
 class Frame:
     """Data frame to store in the run box"""
-    duration, offset, size = 0, 0, 0
-    composition_time = None
-    _data = b''
-    _chunk_offset = 0
-
     def __init__(self, unit_size_bytes=0):
+        self.duration, self.offset, self.size = 0, 0, 0
+        self.composition_time = None
+        self._data = b''
+        self._chunk_offset = 0
         self._unit_size_bytes = unit_size_bytes
 
     def __iter__(self):
@@ -133,9 +131,8 @@ class OptionalFields:
 @full_box_derived
 class Box(FullBox):
     """Track fragment run box"""
-    first_sample_flags, data_offset = (0, 0)
-
     def __init__(self, *args, **kwargs):
+        self.first_sample_flags, self.data_offset = (0, 0)
         self.samples = []
         super().__init__(*args, **kwargs)
         self.tr_flags = Flags(self.flags)

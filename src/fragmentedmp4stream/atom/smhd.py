@@ -12,7 +12,9 @@ def atom_type():
 @full_box_derived
 class Box(FullBox):
     """Sound media header, overall information (sound track only"""
-    balance = 0
+    def __init__(self, *args, **kwargs):
+        self.balance = 0
+        super().__init__(*args, **kwargs)
 
     def __repr__(self):
         return super().__repr__() + f" balance:{self.balance}"
