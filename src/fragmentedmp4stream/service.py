@@ -8,7 +8,7 @@ import sys
 from .handler import handler
 from http.server import HTTPServer
 from socketserver import ThreadingMixIn
-from .rtsp.service import Service as RtspService
+from .tcp.service import Service as TcpService
 
 
 class ThreadedHTTPServer(ThreadingMixIn, HTTPServer):
@@ -62,7 +62,7 @@ class Service:
         """Starts http server"""
         logging.basicConfig(level=logging.INFO)
         params['segment_makers'] = self.segment_makers
-        rtsp_server = RtspService(('', ports[2]), params)
+        tcp_server = TcpService(('', ports[2]), params)
         http_server = server_class(('', ports[0]), handler(params))
         ssl_key_folder = params.get('keys')
         https_server = None
@@ -70,7 +70,7 @@ class Service:
             https_server = HttpsService(ssl_key_folder, ports[1], params)
         logging.info('Starting...')
         try:
-            rtsp_server.start()
+            tcp_server.start()
             if https_server:
                 https_server.start()
             http_server.serve_forever()
@@ -78,7 +78,7 @@ class Service:
             pass
         http_server.server_close()
         https_server and https_server.join()
-        rtsp_server.join()
+        tcp_server.join()
         logging.info('Stopping')
 
 

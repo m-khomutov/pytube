@@ -39,9 +39,8 @@ class Connection:
         except ValueError:
             self._auth = None
 
-    def on_read_event(self, key):
+    def on_read_event(self, key, data):
         """Manager read socket event"""
-        data = key.fileobj.recv(1024)  # Should be ready to read
         if data:
             key.data.inb += data
             if key.data.inb.find(bytes([0x0d, 0x0a, 0x0d, 0x0a])):

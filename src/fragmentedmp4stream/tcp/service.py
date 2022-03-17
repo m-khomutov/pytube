@@ -5,7 +5,7 @@ import types
 import multiprocessing
 import time
 import logging
-from .connection import Connection as RtspConnection
+from .connection import Connection
 
 
 class Service(multiprocessing.Process):
@@ -41,7 +41,7 @@ class Service(multiprocessing.Process):
                         selector.register(sock,
                                           selectors.EVENT_READ | selectors.EVENT_WRITE,
                                           types.SimpleNamespace(addr=address, inb=b'', outb=b''))
-                        self._connections[address] = RtspConnection(address, self._params)
+                        self._connections[address] = Connection(address, self._params)
                     else:
                         try:
                             self._on_event(key, mask)
