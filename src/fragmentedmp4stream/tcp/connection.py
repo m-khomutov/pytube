@@ -1,5 +1,6 @@
 """Base class for any protocol connection"""
 from ..rtsp.connection import Connection as RtspConnection
+from ..rtmp.connection import Connection as RtmpConnection
 
 
 class Connection:
@@ -10,6 +11,7 @@ class Connection:
 
     def on_read_event(self, key):
         data = key.fileobj.recv(2048)  # Should be ready to read
+        print(f'got {len(data)}')
         if not self._specific:
             self._guess_protocol(data)
         if self._specific:
@@ -22,3 +24,5 @@ class Connection:
     def _guess_protocol(self, data):
         if data.find(b'RTSP/1.') > 0:
             self._specific = RtspConnection(self._address, self._params)
+        elif data[0] == 3 and len(data) == 1537:
+            self._specific = RtmpConnection(self._address, self._params)

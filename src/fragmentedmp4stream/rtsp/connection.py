@@ -1,4 +1,4 @@
-"""RTSP protocol network client"""
+"""RTSP protocol network connection"""
 import os
 from datetime import datetime
 from .session import Session as RtspSession
@@ -6,7 +6,7 @@ from ..authentication import AuthenticationContainer, Authentication, Authentica
 
 
 class Connection:
-    """Manages RTSP protocol network client activity"""
+    """Manages RTSP protocol network connection activity"""
     @staticmethod
     def _datetime():
         return str.encode('Date: ' +
