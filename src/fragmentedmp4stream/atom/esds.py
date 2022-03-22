@@ -191,14 +191,14 @@ class Box(FullBox):
         left = self.size - (file.tell() - self.position)
         while left > 0:
             tag = file.read(1)[0]
-            if tag == 3:
-                self.descriptors.append(ESDescriptor(file))
-            elif tag == 4:
-                self.descriptors.append(ConfigDescriptor(file))
-            elif tag == 5:
-                self.descriptors.append(DecoderSpecificDescriptor(file))
-            elif tag == 6:
-                self.descriptors.append(SLConfigDescriptor(file))
+            descriptor = {
+                3: lambda: ESDescriptor(file),
+                4: lambda: ConfigDescriptor(file),
+                5: lambda: DecoderSpecificDescriptor(file),
+                6: lambda: SLConfigDescriptor(file),
+            }.get(tag, lambda: None)
+            if descriptor:
+                self.descriptors.append(descriptor)
             else:
                 break
             left = self.size - (file.tell() - self.position)

@@ -61,28 +61,18 @@ class VisualSampleEntry(SampleEntry):
             self.inner_boxes = {}  # [avcC hvcC pasp fiel]
             while left > 0:
                 box = Atom(file=file, depth=self._depth + 1)
-                if box.type == 'avcC':
-                    file.seek(box.position)
-                    inner_box = avcc.Box(file=file, depth=self._depth + 1)
-                    self.inner_boxes[box.type] = inner_box
-                    left -= inner_box.size
-                elif box.type == 'hvcC':
-                    file.seek(box.position)
-                    inner_box = hvcc.Box(file=file, depth=self._depth + 1)
-                    self.inner_boxes[box.type] = inner_box
-                    left -= inner_box.size
-                elif box.type == 'pasp':
-                    file.seek(box.position)
-                    inner_box = pasp.Box(file=file, depth=self._depth + 1)
-                    self.inner_boxes[box.type] = inner_box
-                    left -= inner_box.size
-                elif box.type == 'fiel':
-                    file.seek(box.position)
-                    inner_box = fiel.Box(file=file, depth=self._depth + 1)
+                file.seek(box.position)
+                inner_box = {
+                    'avcC': lambda: avcc.Box(file=file, depth=self._depth + 1),
+                    'hvcC': lambda: hvcc.Box(file=file, depth=self._depth + 1),
+                    'pasp': lambda: pasp.Box(file=file, depth=self._depth + 1),
+                    'fiel': lambda: fiel.Box(file=file, depth=self._depth + 1),
+                }.get(box.type, lambda: None)()
+                if inner_box:
                     self.inner_boxes[box.type] = inner_box
                     left -= inner_box.size
                 else:
-                    file.seek(box.position+box.size)
+                    file.seek(box.position + box.size)
                     left -= box.size
                     self.size -= box.size
 
@@ -419,9 +409,6 @@ class Box(FullBox):
     def __init__(self, *args, **kwargs):
         self.entries = []
         self.video_stream_type = VideoCodecType.UNKNOWN
-        super().__init__(*args, **kwargs)
-
-    def __init__(self, *args, **kwargs):
         self.handler = kwargs.get('hdlr', None)
         super().__init__(*args, **kwargs)
 
@@ -447,9 +434,9 @@ class Box(FullBox):
         """Reads entry of specific type"""
         if self.handler == 'vide':
             entry = VisualSampleEntry(file=file, depth=self._depth+1)
-            if entry.inner_boxes.get('avcC') is not None:
+            if entry.inner_boxes.get('avcC'):
                 self.video_stream_type = VideoCodecType.AVC
-            elif entry.inner_boxes.get('hvcC') is not None:
+            elif entry.inner_boxes.get('hvcC'):
                 self.video_stream_type = VideoCodecType.HEVC
             return entry
         if self.handler == 'soun':

@@ -1,15 +1,14 @@
 """RTMP protocol network connection"""
-from collections import namedtuple
 from datetime import datetime
 from enum import IntEnum
 import secrets
+
+from .chunk import CS0, CSn, Chunk
 
 State: IntEnum = IntEnum('State', ('Initial',
                                    'Handshake'
                                    )
                          )
-CS0 = namedtuple('CS0', 'version')
-CSn = namedtuple('CSn', 'time time2 random')
 
 
 class ConnectionException(ValueError):
@@ -30,6 +29,7 @@ class Connection:
         self._c1: CSn = CSn(0, 0, b'')
         self._s1: CSn = CSn(int(datetime.now().timestamp()), 0, secrets.token_bytes(1528))
         self._state: State = State.Initial
+        self._chunk: Chunk = Chunk()
         print(f'RTMP connect from {self._address}')
 
     def on_read_event(self, key, buffer):
@@ -52,7 +52,7 @@ class Connection:
         elif self._state == State.Initial and len(buffer) >= 1536:
             self._on_c2(buffer)
         else:
-            print(f'some data of {len(buffer)}')
+            self._chunk.parse(buffer, self._on_command)
 
     def _on_c0(self, buffer, data):
         c0: CS0 = CS0(buffer[0])
@@ -76,3 +76,6 @@ class Connection:
         if not (time_ok and time2_ok and random_ok):
             raise ConnectionException(f'Handshake failed: time {time_ok}, time2 {time2_ok} random {random_ok}')
         self._state = State.Handshake
+
+    def _on_command(self, data: bytes):
+        print(f'Got message of size {len(data)}')

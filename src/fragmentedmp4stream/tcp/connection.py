@@ -11,7 +11,6 @@ class Connection:
 
     def on_read_event(self, key):
         data = key.fileobj.recv(2048)  # Should be ready to read
-        print(f'got {len(data)}')
         if not self._specific:
             self._guess_protocol(data)
         if self._specific:
