@@ -82,8 +82,9 @@ class Service:
         logging.info('Stopping')
 
 
-def start(argv):
+def start():
     """Program start point"""
+    argv = sys.argv[1:]
     try:
         opts, args = getopt.getopt(argv,
                                    "hp:r:s:b:d:ck:v",

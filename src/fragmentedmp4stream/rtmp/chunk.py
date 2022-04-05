@@ -11,9 +11,16 @@ class ChunkException(ValueError):
 
 
 class ChunkBasicHeader:
-    """Encodes the chunk stream ID and the chunk type. Chunk type determines the format of the
-       encoded message header. The length depends entirely on the chunk stream ID,
-       which is a variable-length field."""
+    """
+    +-+-+-+-+-+-+-+-+
+    |fmt|   cs id   |
+    +-+-+-+-+-+-+-+-+
+    +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+    |fmt|     0     |    cs id - 64 |
+    +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+    +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+    |fmt|     1     |         cs id - 64            |
+    +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+"""
     def __init__(self, message: bytes):
         self.chunk_type: int = message[0] >> 6
         self.chunk_stream_id: int = message[0] & 0x3f
@@ -33,8 +40,14 @@ class ChunkBasicHeader:
 
 
 class ChunkMessageHeader:
-    """Encodes information about the message being sent (whether in whole or in part).
-       The length can be determined using the chunk type specified in the chunk header."""
+    """
+    +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+    |                  timestamp                    |message length |
+    +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+    |      message length (cont)    |message type id| msg stream id |
+    +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+    |          message stream id (cont)             |
+    +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+ """
     def __init__(self):
         self.timestamp: int = 0
         self.message_length: int = 0
@@ -84,7 +97,11 @@ class ChunkMessageHeader:
 
 
 class Chunk:
-    """Chunk Data"""
+    """
+    +--------------+----------------+--------------------+--------------+
+    | Basic Header | Message Header | Extended Timestamp | Chunk Data   |
+    +--------------+----------------+--------------------+--------------+
+    <-------------------- Chunk Header ------------------>"""
     _default_size: int = 128
 
     def __init__(self):

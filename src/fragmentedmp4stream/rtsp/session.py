@@ -52,6 +52,9 @@ class PlayRange:
                 self._start_clock = start_ts
             self.npt_range[0] = start_ts - self._start_clock
         if end:
+            pos = end.find('.')
+            if pos != -1:
+                end = end[:pos] + 'Z'
             self.npt_range[1] = \
                 datetime.strptime(end, "%Y%m%dT%H%M%SZ").timestamp() \
                 - self._start_clock
@@ -71,7 +74,7 @@ class Session:
         self._streamers = {}
         self._sdp = ''
         self._play_range = None
-        self._content_base = content_base
+        self._content_base = content_base if content_base.endswith('/') else content_base + '/'
         self._reader = Reader(filename)
         self._verbal = verbal
         if self._verbal:
