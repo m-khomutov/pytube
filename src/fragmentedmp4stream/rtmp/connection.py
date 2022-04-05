@@ -3,7 +3,7 @@ from datetime import datetime
 from enum import IntEnum
 import secrets
 
-from .chunk import CS0, CSn, Chunk
+from .chunk import CS0, CSn, Chunk, ChunkMessageHeader
 
 State: IntEnum = IntEnum('State', ('Initial',
                                    'Handshake'
@@ -77,5 +77,8 @@ class Connection:
             raise ConnectionException(f'Handshake failed: time {time_ok}, time2 {time2_ok} random {random_ok}')
         self._state = State.Handshake
 
-    def _on_command(self, data: bytes):
+    def _on_command(self, header: ChunkMessageHeader, data: bytes):
+        print(header)
+        for c in data:
+            print(f'{c:x} ', end='')
         print(f'Got message of size {len(data)}')

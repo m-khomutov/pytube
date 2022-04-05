@@ -125,7 +125,7 @@ class Chunk:
             self._start_of_chunk = rc >= self._size
             offset += rc
             if self._ready():
-                callback(self._data)
+                callback(self._header, self._data)
                 self._reset()
 
     def _ready(self) -> bool:
