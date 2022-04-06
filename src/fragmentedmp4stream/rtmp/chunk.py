@@ -107,7 +107,7 @@ class Chunk:
     def __init__(self):
         self._size = self.__class__._default_size
         self._header: ChunkMessageHeader = ChunkMessageHeader()
-        self._data: bytearray = b''
+        self._data: bytearray = bytearray()
         self._start_of_chunk: bool = True
 
     @property

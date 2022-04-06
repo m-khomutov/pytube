@@ -1,6 +1,12 @@
 """Control messages. These messages contain information needed
    by the RTMP Chunk Stream protocol"""
 from enum import IntEnum
+from typing import List
+
+
+class ControlMessageException(Exception):
+    pass
+
 
 LimitType: IntEnum = IntEnum('LimitType', ('Hard',
                                            'Soft',
@@ -72,3 +78,57 @@ class SetPeerBandwidth:
     @property
     def limit_type(self) -> LimitType:
         return self._limit_type
+
+
+UserControlEventType: IntEnum = IntEnum('UserControlEventType', ('StreamBegin',
+                                                                 'StreamEOF',
+                                                                 'StreamDry',
+                                                                 'SetBufferLength',
+                                                                 'StreamIsRecorded',
+                                                                 'PingRequest',
+                                                                 'PingResponse')
+                                        )
+
+
+class UserControlMessage:
+    """Contains information used by the RTMP streaming layer"""
+    type_id = 4
+
+    def __init__(self, data: bytes) -> None:
+        self._event_data: List[int, int] = [0, 0]
+        self._event_type: UserControlEventType = int.from_bytes(data[:2], 'big')
+        self._event_data[0] = int.from_bytes(data[2:6], 'big')
+        if self._event_type == UserControlEventType.SetBufferLength:
+            self._event_data[1] = int.from_bytes(data[2:6], 'big')
+
+    @property
+    def event_type(self) -> UserControlEventType:
+        return self._event_type
+
+    @property
+    def stream_id(self) -> int:
+        if self._event_type == UserControlEventType.PingRequest or\
+           self._event_type == UserControlEventType.PingResponse:
+            raise ControlMessageException('message has no stream id field')
+        return self._event_data[0]
+
+    @property
+    def buffer_length(self) -> int:
+        if self._event_type == UserControlEventType.SetBufferLength:
+            return self._event_data[1]
+        raise ControlMessageException('message has no buffer length field')
+
+    @property
+    def timestamp(self) -> int:
+        if self._event_type == UserControlEventType.PingRequest or \
+           self._event_type == UserControlEventType.PingResponse:
+            return self._event_data[0]
+        raise ControlMessageException('message has no timestamp field')
+
+    @timestamp.setter
+    def timestamp(self, value: int):
+        if self._event_type == UserControlEventType.PingRequest or \
+           self._event_type == UserControlEventType.PingResponse:
+            self._event_data[0] = value
+        else:
+            raise ControlMessageException('message has no timestamp field')

@@ -2,8 +2,8 @@
 from datetime import datetime
 from enum import IntEnum
 import secrets
-
 from .chunk import CS0, CSn, Chunk, ChunkMessageHeader
+from .messages.command import Command
 
 State: IntEnum = IntEnum('State', ('Initial',
                                    'Handshake'
@@ -82,3 +82,7 @@ class Connection:
         for c in data:
             print(f'{c:x} ', end='')
         print(f'Got message of size {len(data)}')
+        if header.message_type_id == Command.amf0_type_id:
+            command: Command = Command.make(data)
+            print(f'{str(command)} of: {len(command)}')
+
