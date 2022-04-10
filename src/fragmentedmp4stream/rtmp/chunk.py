@@ -21,16 +21,31 @@ class ChunkBasicHeader:
     +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
     |fmt|     1     |         cs id - 64            |
     +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+"""
-    def __init__(self, message: bytes):
+    def __init__(self, chunk_type: int, stream_id: int) -> None:
+        self.chunk_type: int = chunk_type
+        self.chunk_stream_id: int = stream_id
+        self._length = 1
+
+    def from_bytes(self, message: bytes):
         self.chunk_type: int = message[0] >> 6
         self.chunk_stream_id: int = message[0] & 0x3f
-        self._length = 1
         if self.chunk_stream_id == 0:
             self.chunk_stream_id = int(message[1]) + 64
             self._length = 2
         elif self.chunk_stream_id == 1:
             self.chunk_stream_id = int(message[2]) * 256 + int(message[1]) + 64
             self._length = 3
+
+    def to_bytes(self) -> bytes:
+        rc = [(self.chunk_type << 6)]
+        if self.chunk_stream_id < 64:
+            rc[0] |= self.chunk_stream_id
+        else:
+            stream_id = self.chunk_stream_id - 64
+            rc.append(stream_id & 0xff)
+            if self.chunk_stream_id > 319:
+                rc.append(stream_id >> 8)
+        return bytes(rc)
 
     def __len__(self):
         return self._length
@@ -55,36 +70,59 @@ class ChunkMessageHeader:
         self.message_stream_id: int = 0
         self._length: int = 0
 
-    def parse(self, message: bytes):
+    def from_bytes(self, message: bytes):
         """Parses three parts of Chunk Header"""
-        basic_header: ChunkBasicHeader = ChunkBasicHeader(message)
+        basic_header: ChunkBasicHeader = ChunkBasicHeader()
+        basic_header.from_bytes(message)
         self._length = len(basic_header)
         {
-            0: self._type_0,
-            1: self._type_1,
-            2: self._type_2,
-        }.get(basic_header.chunk_type, self._type_3)(message[self._length:self._length+11])
+            0: self._type0,
+            1: self._type1,
+            2: self._type2,
+        }.get(basic_header.chunk_type, self._type3)(message[self._length:self._length+11])
         if self.timestamp == 0xffffff:
             self.timestamp = int(message[self._length:self._length+4])
             self._length += 4
 
-    def _type_0(self, message: bytes):
-        self._type_1(message)
+    def to_bytes(self, basic_header: ChunkBasicHeader, ) -> bytes:
+        return basic_header.to_bytes() +\
+         {
+            0: self._type0_to_bytes,
+            1: self._type1_to_bytes,
+            2: self._type2_to_bytes,
+         }.get(basic_header.chunk_type, self._type3_to_bytes)()
+
+    def _type0(self, message: bytes):
+        self._type1(message)
         self.message_stream_id = int.from_bytes(message[7:11], byteorder='big')
         self._length += 3
 
-    def _type_1(self, message: bytes):
-        self._type_2(message)
+    def _type0_to_bytes(self) -> bytes:
+        return self._type1_to_bytes() + self.message_stream_id.to_bytes(4, 'big')
+
+    def _type1(self, message: bytes):
+        self._type2(message)
         self.message_length = int.from_bytes(message[3:6], byteorder='big')
         self.message_type_id = int(message[6])
         self._length += 4
 
-    def _type_2(self, message: bytes):
+    def _type1_to_bytes(self) -> bytes:
+        return self._type2_to_bytes() +\
+               self.message_length.to_bytes(3, 'big') +\
+               self.message_type_id.to_bytes(1, 'big')
+
+    def _type2(self, message: bytes):
         self.timestamp += int.from_bytes(message[0:3], byteorder='big')
         self._length += 4
 
-    def _type_3(self, message: bytes):
+    def _type2_to_bytes(self) -> bytes:
+        return self.timestamp.to_bytes(3, 'big')
+
+    def _type3(self, message: bytes):
         pass
+
+    def _type3_to_bytes(self) -> bytes:
+        return b''
 
     def __repr__(self):
         return f'{self.__class__.__name__}(timestamp={self.timestamp},' \
@@ -119,7 +157,7 @@ class Chunk:
         offset: int = 0
         while offset < len(buffer):
             if self._start_of_chunk:
-                self._header.parse(buffer[offset:offset+11])
+                self._header.from_bytes(buffer[offset:offset+11])
                 offset += len(self._header)
             rc: int = self._store_data(buffer[offset:offset+self._size])
             self._start_of_chunk = rc >= self._size
