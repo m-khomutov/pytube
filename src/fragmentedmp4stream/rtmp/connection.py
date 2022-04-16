@@ -4,6 +4,7 @@ from enum import IntEnum
 import secrets
 from .chunk import CS0, CSn, Chunk, ChunkMessageHeader
 from .messages.command import Command
+from .messages.control import WindowAcknowledgementSize, SetPeerBandwidth, UserControlMessage
 
 State: IntEnum = IntEnum('State', ('Initial',
                                    'Handshake'
@@ -52,7 +53,7 @@ class Connection:
         elif self._state == State.Initial and len(buffer) >= 1536:
             self._on_c2(buffer)
         else:
-            self._chunk.parse(buffer, self._on_command)
+            self._chunk.parse(buffer, self._on_command, data)
 
     def _on_c0(self, buffer, data):
         c0: CS0 = CS0(buffer[0])
@@ -77,7 +78,7 @@ class Connection:
             raise ConnectionException(f'Handshake failed: time {time_ok}, time2 {time2_ok} random {random_ok}')
         self._state = State.Handshake
 
-    def _on_command(self, header: ChunkMessageHeader, data: bytes):
+    def _on_command(self, header: ChunkMessageHeader, data: bytes, out_data):
         print(header)
         for c in data:
             print(f'{c:x} ', end='')
@@ -85,4 +86,10 @@ class Connection:
         if header.message_type_id == Command.amf0_type_id:
             command: Command = Command.make(data)
             print(f'{str(command)} of: {len(command)}')
-
+            reply: bytes = WindowAcknowledgementSize().to_bytes() +\
+                SetPeerBandwidth().to_bytes() +\
+                UserControlMessage().to_bytes()
+            out_data.outb = reply
+            for c in reply:
+                print(f'{c:x}', end=' ')
+            print('')

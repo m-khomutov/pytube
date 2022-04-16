@@ -21,7 +21,7 @@ class ChunkBasicHeader:
     +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
     |fmt|     1     |         cs id - 64            |
     +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+"""
-    def __init__(self, chunk_type: int, stream_id: int) -> None:
+    def __init__(self, chunk_type: int = 0, stream_id: int = 0) -> None:
         self.chunk_type: int = chunk_type
         self.chunk_stream_id: int = stream_id
         self._length = 1
@@ -152,7 +152,7 @@ class Chunk:
     def size(self):
         return self._size
 
-    def parse(self, buffer: bytes, callback):
+    def parse(self, buffer: bytes, callback, out_data):
         """Parses Chunk Header, Stores Chunk Data"""
         offset: int = 0
         while offset < len(buffer):
@@ -163,7 +163,7 @@ class Chunk:
             self._start_of_chunk = rc >= self._size
             offset += rc
             if self._ready():
-                callback(self._header, self._data)
+                callback(self._header, self._data, out_data)
                 self._reset()
 
     def _ready(self) -> bool:
