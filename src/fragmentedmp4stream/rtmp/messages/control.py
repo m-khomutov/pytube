@@ -179,7 +179,7 @@ class UserControlMessage:
 
     def __init__(self,
                  event_type: UserControlEventType = UserControlEventType.StreamBegin,
-                 event_data: list = [0, 0]) -> None:
+                 event_data: list = (0, 0)) -> None:
         self._event_type: UserControlEventType = event_type
         self._event_data: list = event_data
 

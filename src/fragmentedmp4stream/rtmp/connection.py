@@ -1,9 +1,10 @@
 """RTMP protocol network connection"""
+import secrets
 from datetime import datetime
 from enum import IntEnum
-import secrets
+from typing import Union
 from .chunk import CS0, CSn, Chunk, ChunkMessageHeader
-from .messages.command import Command
+from .messages.command import Command, ResultCommand
 from .messages.control import WindowAcknowledgementSize, SetPeerBandwidth, UserControlMessage
 
 State: IntEnum = IntEnum('State', ('Initial',
@@ -84,12 +85,16 @@ class Connection:
             print(f'{c:x} ', end='')
         print(f'Got message of size {len(data)}')
         if header.message_type_id == Command.amf0_type_id:
-            command: Command = Command.make(data)
-            print(f'{str(command)} of: {len(command)}')
-            reply: bytes = WindowAcknowledgementSize().to_bytes() +\
-                SetPeerBandwidth().to_bytes() +\
-                UserControlMessage().to_bytes()
-            out_data.outb = reply
-            for c in reply:
-                print(f'{c:x}', end=' ')
-            print('')
+            command: Union[Command, None] = Command.make(data)
+            if command and command.type == 'connect':
+                print(f'{str(command)} of: {len(command)}')
+                reply: bytes = WindowAcknowledgementSize().to_bytes() +\
+                    SetPeerBandwidth().to_bytes() +\
+                    UserControlMessage().to_bytes() +\
+                    ResultCommand(command.transaction_id).to_bytes()
+                out_data.outb = reply
+                for c in reply:
+                    print(f'{c:x}', end=' ')
+                print('')
+            elif command:
+                print(f'command: {command.type}')

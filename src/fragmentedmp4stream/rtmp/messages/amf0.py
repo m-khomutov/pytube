@@ -27,22 +27,51 @@ TypeMarker: IntEnum = IntEnum('TypeMarker', ('Number',
 
 
 class Type:
-    def __init__(self, data: bytes) -> None:
-        self._marker: TypeMarker = int(data[0])
-        self._size: int = 1
-        self._value = {
-            TypeMarker.Number: self._number,
-            TypeMarker.Boolean: self._boolean,
-            TypeMarker.String: self._string,
-            TypeMarker.Object: self._object,
-            TypeMarker.Reference: self._reference,
-            TypeMarker.EcmaArray: self._ecma_array,
-            TypeMarker.StrictArray: self._strict_array,
-            TypeMarker.Date: self._date,
-            TypeMarker.LongString: self._long_string,
-            TypeMarker.XmlDocument: self._long_string,
-            TypeMarker.TypedObject: self._typed_object
-        }.get(self._marker, self._no_information)(data[1:])
+    def __init__(self, marker: TypeMarker = TypeMarker.Number, value: Union[float, bool, str, Dict] = .0):
+        self._marker: TypeMarker = marker
+        self._size: int = \
+            {
+                TypeMarker.Number: lambda v: 9,
+                TypeMarker.String: lambda v: 3 + len(v),
+                TypeMarker.Object: lambda v: 1,
+            }.get(self._marker, lambda v: 1)(value)
+
+        self._value = value
+
+    def from_bytes(self, data: bytes) -> None:
+        if data:
+            self._marker = int(data[0])
+            self._size = 1
+        if len(data) > 1:
+            self._value = {
+                TypeMarker.Number: self._number,
+                TypeMarker.Boolean: self._boolean,
+                TypeMarker.String: self._string,
+                TypeMarker.Object: self._object,
+                TypeMarker.Reference: self._reference,
+                TypeMarker.EcmaArray: self._ecma_array,
+                TypeMarker.StrictArray: self._strict_array,
+                TypeMarker.Date: self._date,
+                TypeMarker.LongString: self._long_string,
+                TypeMarker.XmlDocument: self._long_string,
+                TypeMarker.TypedObject: self._typed_object
+            }.get(self._marker, self._no_information)(data[1:])
+
+    def to_bytes(self) -> bytes:
+        return self._marker.to_bytes(1, byteorder='big') +\
+            {
+                TypeMarker.Number: self._number_to_bytes,
+                TypeMarker.Boolean: self._boolean_to_bytes,
+                TypeMarker.String: self._string_to_bytes,
+                TypeMarker.Object: self._object_to_bytes,
+                #TypeMarker.Reference: self._reference_to_bytes,
+                #TypeMarker.EcmaArray: self._ecma_array_to_bytes,
+                #TypeMarker.StrictArray: self._strict_array_to_bytes,
+                #TypeMarker.Date: self._date_to_bytes,
+                #TypeMarker.LongString: self._long_string_to_bytes,
+                #TypeMarker.XmlDocument: self._long_string_to_bytes,
+                #TypeMarker.TypedObject: self._typed_object_to_bytes
+            }.get(self._marker, self._no_information)()
 
     def __len__(self):
         return self._size
@@ -58,29 +87,46 @@ class Type:
         self._size = self._size + 8
         return struct.unpack('>d', data[:8])[0]
 
+    def _number_to_bytes(self) -> bytes:
+        print(f'typ: {self._marker} val: {self._value}')
+        return struct.pack('>d', float(self._value))
+
     def _boolean(self, data: bytes) -> bool:
         self._size = self._size + 1
         return data[0] != b'\x00'
+
+    def _boolean_to_bytes(self) -> bytes:
+        return b'\x01' if self._value else b'\x00'
 
     def _string(self, data: bytes) -> str:
         size = struct.unpack('>H', data[:2])[0]
         self._size = self._size + 2 + size
         return data[2:2+size].decode('utf-8')
 
+    def _string_to_bytes(self) -> bytes:
+        return struct.pack('>H', len(self._value)) + str(self._value).encode('utf-8')
+
     def _object(self, data: bytes) -> Dict[str, ...]:
         object_: Dict[str, ...] = {}
         while True:
             key: str = self._string(data[self._size-1:])
-            object_[key] = Type(data[self._size-1:])
+            object_[key]: Type = Type()
+            object_[key].from_bytes(data[self._size-1:])
             self._size = self._size + len(object_[key])
             if data[self._size-1] == data[self._size] == 0 and data[self._size+1] == TypeMarker.ObjectEnd:
                 self._size = self._size + 3
                 break
         return object_
 
+    def _object_to_bytes(self) -> bytes:
+        return b''
+
     def _reference(self, data: bytes) -> int:
         self._size = self._size + 2
         return struct.unpack('>H', data[:2])[0]
+
+    def _reference_to_bytes(self):
+        return struct.pack('>H', self._value)
 
     def _ecma_array(self, data: bytes) -> Dict[str, ...]:
         array_: Dict[str, ...] = {}
@@ -88,7 +134,8 @@ class Type:
         self._size = self._size + 4
         for _ in range(count):
             key: str = self._string(data[self._size-1:])
-            array_[key] = Type(data[self._size-1:])
+            array_[key]: Type = Type()
+            array_[key].from_bytes(data[self._size-1:])
             self._size = self._size + len(array_[key])
         return array_
 
@@ -97,7 +144,9 @@ class Type:
         count: int = struct.unpack('>I', data[:4])[0]
         self._size = self._size + 4
         for _ in range(count):
-            array_.append(Type(data[self._size-1:]))
+            entry: Type = Type()
+            entry.from_bytes(data[self._size - 1:])
+            array_.append(entry)
             self._size = self._size + len(array_[-1])
         return array_
 
