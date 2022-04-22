@@ -1,7 +1,7 @@
 """mp4 file streamer"""
-import fragmentedmp4stream.service
+import tube.service
 
 
 if __name__ == "__main__":
-    """Starts mp4 file streamer"""
-    fragmentedmp4stream.service.start()
+    """Starts pytube"""
+    tube.service.start()

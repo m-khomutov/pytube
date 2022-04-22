@@ -1,24 +1,12 @@
-# Fragmented mp4stream Package
+# pytube Package
+
+**Installation**
+
+`pip install pytube-pkg==0.0.1`
 
 **Usage**
-```python 
-import fragmentedmp4stream.service
-import sys
 
-def main(argv):
-    fragmentedmp4stream.service.start(argv)
-
-if __name__ == "__main__":
-    main(sys.argv[1:])
-```
-
-**videocodecs**
-* h264
-* h265
-
-**protocols**
-* http[s](fMP4, HLS, MPEG-dash)
-* rtsp(tcp rtp-interleaved)
+`pytube parameters`
 
 **parameters**
 * -p(--ports) ports[http,https,rtsp] to bind(def. *4555*,*4556*,*4557*)
@@ -31,9 +19,14 @@ if __name__ == "__main__":
 * -v(--verb) be verbose (show structure of required mp4 file)
 * -h(--help) this help
 
-**installation**
 
-`pip install fragmented-mp4stream-pkg==0.0.4`
+**videocodecs**
+* h264
+* h265
+
+**protocols**
+* http[s](fMP4, HLS, MPEG-dash)
+* rtsp(tcp rtp-interleaved)
 
 **subtitles**
 
@@ -92,7 +85,7 @@ Supports parameters
 **example1**
 
 * service
-  * python3 mp4stream.py -r ~/video/
+  * pytube -r ~/video/
 * client
   *  curl --request GET http://192.168.250.229:4555/ | jq .
     >mp4 file list of ~/video/
@@ -108,7 +101,7 @@ Supports parameters
 **example2**
 
 * service
-  * python3 mp4stream.py -r ~/video/
+  * pytube -r ~/video/
 * client
   * ffplay http://192.168.250.229:4555/toystory
     >`~/video/toystory.mp4 - fragmented mp4`
@@ -117,7 +110,7 @@ Supports parameters
 **example3**
 
 * service
-  * python3 mp4stream.py -r ~/video/
+  * pytube -r ~/video/
 * client
   * ffplay http://192.168.250.229:4555/toystory.m3u
     >`~/video/toystory.mp4 - HLS with fragmented mp4`
@@ -125,7 +118,7 @@ Supports parameters
 **example4**
 
 * service
-  * python3 mp4stream.py -r ~/video/ -k ssl
+  * pytube -r ~/video/ -k ssl
 * client
   * vlc https://192.168.250.229:4556/toystory.mpd
     >`~/video/toystory.mp4 - MPEG_dash with fragmented mp4`
@@ -133,7 +126,7 @@ Supports parameters
 **example5**
 
 * service
-  * python3 mp4stream.py -r ~/video/
+  * pytube -r ~/video/
 * client
   * ffplay -rtsp_transport tcp rtsp://192.168.250.229:4557/toystory
     >`~/video/toystory.mp4 - rtsp stream`
