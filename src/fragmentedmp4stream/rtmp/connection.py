@@ -4,7 +4,8 @@ from datetime import datetime
 from enum import IntEnum
 from typing import Union
 from .chunk import CS0, CSn, Chunk, ChunkMessageHeader
-from .messages.command import Command, ResultCommand
+from .messages.command import Command, ResultCommand, OnBWDoneCommand
+from .messages.control import SetChunkSize
 from .messages.control import WindowAcknowledgementSize, SetPeerBandwidth, UserControlMessage
 
 State: IntEnum = IntEnum('State', ('Initial',
@@ -32,6 +33,7 @@ class Connection:
         self._s1: CSn = CSn(int(datetime.now().timestamp()), 0, secrets.token_bytes(1528))
         self._state: State = State.Initial
         self._chunk: Chunk = Chunk()
+        self._chunk_size: int = SetChunkSize().chunk_size
         print(f'RTMP connect from {self._address}')
 
     def on_read_event(self, key, buffer):
@@ -83,17 +85,18 @@ class Connection:
         print(header)
         for c in data:
             print(f'{c:x} ', end='')
-        print(f'Got message of size {len(data)}')
+        print(f'of {len(data)}')
         if header.message_type_id == Command.amf0_type_id:
-            command: Union[Command, None] = Command.make(data)
+            command: Union[Command, None] = Command.make(data, self._chunk_size)
             if command and command.type == 'connect':
-                print(f'{str(command)} of: {len(command)}')
-                reply: bytes = WindowAcknowledgementSize().to_bytes() +\
+                print(f'{str(command)}')
+                out_data.outb = WindowAcknowledgementSize().to_bytes() +\
                     SetPeerBandwidth().to_bytes() +\
                     UserControlMessage().to_bytes() +\
-                    ResultCommand(command.transaction_id).to_bytes()
-                out_data.outb = reply
-                for c in reply:
+                    SetChunkSize().to_bytes() +\
+                    ResultCommand(command.transaction_id, self._chunk_size).to_bytes() +\
+                    OnBWDoneCommand(0., self._chunk_size).to_bytes()
+                for c in out_data.outb:
                     print(f'{c:x}', end=' ')
                 print('')
             elif command:

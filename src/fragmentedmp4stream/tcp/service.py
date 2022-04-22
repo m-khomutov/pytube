@@ -45,7 +45,8 @@ class Service(multiprocessing.Process):
                     else:
                         try:
                             self._on_event(key, mask)
-                        except:  # noqa # pylint: disable=bare-except
+                        except Exception as e:  # noqa # pylint: disable=bare-except
+                            print(f'Exception: {e}')
                             selector.unregister(key.fileobj)
                             key.fileobj.close()
                             del self._connections[key.data.addr]

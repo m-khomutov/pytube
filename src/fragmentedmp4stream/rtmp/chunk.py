@@ -84,13 +84,13 @@ class ChunkMessageHeader:
             self.timestamp = int(message[self._length:self._length+4])
             self._length += 4
 
-    def to_bytes(self, basic_header: ChunkBasicHeader, ) -> bytes:
+    def to_bytes(self, basic_header: ChunkBasicHeader) -> bytes:
         return basic_header.to_bytes() +\
          {
             0: self._type0_to_bytes,
             1: self._type1_to_bytes,
             2: self._type2_to_bytes,
-         }.get(basic_header.chunk_type, self._type3_to_bytes)()
+         }.get(basic_header.chunk_type, lambda: b'')()
 
     def _type0(self, message: bytes):
         self._type1(message)
@@ -120,9 +120,6 @@ class ChunkMessageHeader:
 
     def _type3(self, message: bytes):
         pass
-
-    def _type3_to_bytes(self) -> bytes:
-        return b''
 
     def __repr__(self):
         return f'{self.__class__.__name__}(timestamp={self.timestamp},' \
