@@ -96,8 +96,5 @@ class Connection:
                     SetChunkSize().to_bytes() +\
                     ResultCommand(command.transaction_id, self._chunk_size).to_bytes() +\
                     OnBWDoneCommand(0., self._chunk_size).to_bytes()
-                for c in out_data.outb:
-                    print(f'{c:x}', end=' ')
-                print('')
             elif command:
                 print(f'command: {command.type}')
