@@ -2,7 +2,7 @@
 from __future__ import annotations
 from typing import Union
 from .amf0 import Type as Amf0
-from .amf0 import Number, String, Object, Null
+from .amf0 import TypeMarker, Number, String, Object, Null
 from ..chunk import ChunkBasicHeader, ChunkMessageHeader
 
 
@@ -23,11 +23,18 @@ class Command:
         type_: Amf0 = Amf0.make(data)
         return {
             'connect': Command.make_connect_command,
+            'releaseStream': Command.make_release_command,
         }.get(type_.value, lambda d, sz: None)(data, chunk_size)
 
     @staticmethod
     def make_connect_command(data: bytes, chunk_size: int) -> Command:
         command: Connect = Connect(chunk_size)
+        command.from_bytes(data)
+        return command
+
+    @staticmethod
+    def make_release_command(data: bytes, chunk_size: int) -> Command:
+        command: ReleaseStream = ReleaseStream(chunk_size)
         command.from_bytes(data)
         return command
 
@@ -53,11 +60,12 @@ class Command:
         self.transaction_id = field.value
         field = Amf0.make(data[self._size:])
         self._size += len(field)
-        self._command_object = field.value
-        if self._size < len(data):
-            field = Amf0.make(data[self._size:])
-            self._size += len(field)
-            self._optional_arguments = field.value
+        if field.marker == TypeMarker.Object:
+            self._command_object = field.value
+            if self._size < len(data):
+                field = Amf0.make(data[self._size:])
+                self._size += len(field)
+                self._optional_arguments = field.value
 
     def to_bytes(self) -> bytes:
         bh: ChunkBasicHeader = ChunkBasicHeader(CommandStream.chunk_id, CommandStream.stream_id)
@@ -67,15 +75,18 @@ class Command:
         field: String = String(self._type)
         header.message_length += len(field)
         ret: bytes = field.to_bytes()
-        field = Number(self.transaction_id)
+        field: Number = Number(self.transaction_id)
         header.message_length += len(field)
         ret += field.to_bytes()
         if len(self._command_object) > 4:
             header.message_length += len(self._command_object)
             ret += self._command_object.to_bytes()
-        if len(self._optional_arguments) > 4:
-            header.message_length += len(self._optional_arguments)
-            ret += self._optional_arguments.to_bytes()
+            if len(self._optional_arguments) > 4:
+                header.message_length += len(self._optional_arguments)
+                ret += self._optional_arguments.to_bytes()
+        else:
+            header.message_length += len(Null())
+            ret += Null().to_bytes()
         return header.to_bytes(bh) + self._bytes_to_chunk_size(ret + self._additional_fields)
 
     def _bytes_to_chunk_size(self, data: bytes) -> bytes:
@@ -111,16 +122,14 @@ class Connect(Command):
 
 
 class ResultCommand(Command):
-    def __init__(self, transaction_id: float, chunk_size: int) -> None:
+    def __init__(self, transaction_id: float, chunk_size: int, object_: dict = None, args: dict = None) -> None:
         super().__init__(chunk_size)
         self._type = '_result'
         self.transaction_id = transaction_id
-        self._command_object = Object({'fmsVer': String('FMS/3,0,1,123'),
-                                       'capabilities': Number(31.)})
-        self._optional_arguments = Object({'level': String('status'),
-                                           'code': String('NetConnection.Connect.Success'),
-                                           'description': String('Connection succeeded.'),
-                                           'objectEncoding': Number(0.)})
+        if object_:
+            self._command_object = Object(object_)
+            if args:
+                self._optional_arguments = Object(args)
 
     def to_bytes(self) -> bytes:
         return super().to_bytes()
@@ -136,3 +145,23 @@ class OnBWDoneCommand(Command):
     def to_bytes(self) -> bytes:
         self._additional_fields = Null().to_bytes() + Number(self._bw).to_bytes()
         return super().to_bytes()
+
+
+class ReleaseStream(Command):
+    def __init__(self, chunk_size: int) -> None:
+        super().__init__(chunk_size)
+        self._stream_name: str = ''
+
+    def from_bytes(self, data: bytes) -> None:
+        super().from_bytes(data)
+        if self._type != 'releaseStream':
+            raise CommandMessageException(f'invalid type: {self._type}. Connect expected')
+        field: Amf0 = Amf0.make(data[self._size:])
+        self._size += len(field)
+        self._stream_name = field.value
+
+    def __len__(self) -> int:
+        return self._size
+
+    def __repr__(self):
+        return f'{self.__class__.__name__}(transaction={self.transaction_id}, stream={str(self._stream_name)})'

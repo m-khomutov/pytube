@@ -95,7 +95,7 @@ class ChunkMessageHeader:
     def _type0(self, message: bytes):
         self._type1(message)
         self.message_stream_id = int.from_bytes(message[7:11], byteorder='big')
-        self._length += 3
+        self._length += 4
 
     def _type0_to_bytes(self) -> bytes:
         return self._type1_to_bytes() + self.message_stream_id.to_bytes(4, 'big')
@@ -113,7 +113,7 @@ class ChunkMessageHeader:
 
     def _type2(self, message: bytes):
         self.timestamp += int.from_bytes(message[0:3], byteorder='big')
-        self._length += 4
+        self._length += 3
 
     def _type2_to_bytes(self) -> bytes:
         return self.timestamp.to_bytes(3, 'big')
@@ -146,8 +146,12 @@ class Chunk:
         self._start_of_chunk: bool = True
 
     @property
-    def size(self):
+    def size(self) -> int:
         return self._size
+
+    @size.setter
+    def size(self, value: int) -> None:
+        self._size = value
 
     def parse(self, buffer: bytes, callback, out_data):
         """Parses Chunk Header, Stores Chunk Data"""

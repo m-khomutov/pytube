@@ -2,8 +2,7 @@
 from __future__ import annotations
 import struct
 from enum import IntEnum
-from functools import reduce
-from typing import Dict, List, Tuple, Union, Any
+from typing import Dict, List, Any
 
 TypeMarker: IntEnum = IntEnum('TypeMarker', ('Number',
                                              'Boolean',
@@ -36,13 +35,15 @@ class Type:
             TypeMarker.Boolean: Boolean(),
             TypeMarker.String: String(),
             TypeMarker.Object: Object(),
+            TypeMarker.Null: Null(),
         }.get(marker, lambda: None)
         rc.from_bytes(data[1:])
         return rc
 
-    def __init__(self):
-        self._value = None
-        self._size = 0
+    def __init__(self, marker: TypeMarker):
+        self.marker: TypeMarker = marker
+        self._value: Any = None
+        self._size: int = 0
 
     def __len__(self):
         return self._size
@@ -62,10 +63,8 @@ class Type:
 
 
 class Number(Type):
-    marker: TypeMarker = TypeMarker.Number
-
     def __init__(self, value: float = 0.):
-        super().__init__()
+        super().__init__(TypeMarker.Number)
         self._value = value
         self._size = 9
 
@@ -78,10 +77,8 @@ class Number(Type):
 
 
 class Boolean(Type):
-    marker: TypeMarker = TypeMarker.Boolean
-
     def __init__(self, value: bool = False):
-        super().__init__()
+        super().__init__(TypeMarker.Boolean)
         self._value = value
         self._size = 2
 
@@ -94,10 +91,8 @@ class Boolean(Type):
 
 
 class String(Type):
-    marker: TypeMarker = TypeMarker.String
-
     def __init__(self, value: str = ''):
-        super().__init__()
+        super().__init__(TypeMarker.String)
         self._value = value
         self._size = 3 + len(value)
 
@@ -112,10 +107,8 @@ class String(Type):
 
 
 class Object(Type):
-    marker: TypeMarker = TypeMarker.Object
-
     def __init__(self, value: Dict[str: Any, ...] = dict()):
-        super().__init__()
+        super().__init__(TypeMarker.Object)
         self._value = value
         self._size = 4
         for item in self._value.items():
@@ -142,10 +135,8 @@ class Object(Type):
 
 
 class Null(Type):
-    marker: TypeMarker = TypeMarker.Null
-
     def __init__(self):
-        super().__init__()
+        super().__init__(TypeMarker.Null)
         self._size = 1
 
     def from_bytes(self, data: bytes) -> Type:
@@ -156,10 +147,8 @@ class Null(Type):
 
 
 class Reference(Type):
-    marker: TypeMarker = TypeMarker.Reference
-
     def __init__(self, value: int = 0):
-        super().__init__()
+        super().__init__(TypeMarker.Reference)
         self._value = value
         self._size = 3
 
@@ -172,10 +161,8 @@ class Reference(Type):
 
 
 class EcmaArray(Type):
-    marker: TypeMarker = TypeMarker.EcmaArray
-
     def __init__(self, value: Dict[str: Any, ...] = dict()):
-        super().__init__()
+        super().__init__(TypeMarker.EcmaArray)
         self._value = value
         self._size = 4
         for item in self._value.items():
@@ -201,10 +188,8 @@ class EcmaArray(Type):
 
 
 class StrictArray(Type):
-    marker: TypeMarker = TypeMarker.StrictArray
-
     def __init__(self, value: List[Type] = []):
-        super().__init__()
+        super().__init__(TypeMarker.StrictArray)
         self._value = value
         self._size = 4
         for item in self._value:
@@ -228,10 +213,8 @@ class StrictArray(Type):
 
 
 class Date(Type):
-    marker: TypeMarker = TypeMarker.Date
-
     def __init__(self, value: float = 0.):
-        super().__init__()
+        super().__init__(TypeMarker.Date)
         self._value = value
         self._size = 11
 
@@ -245,10 +228,8 @@ class Date(Type):
 
 
 class LongString(Type):
-    marker: TypeMarker = TypeMarker.String
-
     def __init__(self, value: str = ''):
-        super().__init__()
+        super().__init__(TypeMarker.LongString)
         self._value = value
         self._size = 5 + len(value)
 
@@ -263,10 +244,8 @@ class LongString(Type):
 
 
 class TypedObject(Type):
-    marker: TypeMarker = TypeMarker.TypedObject
-
     def __init__(self, name: str, value: Object = Object()):
-        super().__init__()
+        super().__init__(TypeMarker.TypedObject)
         self._value = value
         self._name: str = name
         self._size = len(self._name) + 2 + len(self._value)

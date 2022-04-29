@@ -1,5 +1,6 @@
 """Control messages. These messages contain information needed
    by the RTMP Chunk Stream protocol"""
+from __future__ import annotations
 from enum import IntEnum
 from ..chunk import ChunkBasicHeader, ChunkMessageHeader
 
@@ -35,8 +36,9 @@ class SetChunkSize:
     def chunk_size(self, value: int) -> None:
         self._chunk_size = value
 
-    def from_bytes(self, data: bytes) -> None:
+    def from_bytes(self, data: bytes) -> SetChunkSize:
         self._chunk_size: int = int.from_bytes(data[:4], 'big') & 0x7fffffff
+        return self
 
     def to_bytes(self) -> bytes:
         bh: ChunkBasicHeader = ChunkBasicHeader(ControlStream.chunk_id, ControlStream.stream_id)
@@ -62,8 +64,9 @@ class AbortMessage:
     def chunk_stream_id(self, value: int) -> None:
         self._chunk_stream_id = value
 
-    def from_bytes(self, data: bytes) -> None:
+    def from_bytes(self, data: bytes) -> AbortMessage:
         self._chunk_stream_id: int = int.from_bytes(data[:4], 'big')
+        return self
 
     def to_bytes(self) -> bytes:
         bh: ChunkBasicHeader = ChunkBasicHeader(ControlStream.chunk_id, ControlStream.stream_id)
@@ -88,8 +91,9 @@ class Acknowledgement:
     def sequence_number(self, value: int) -> None:
         self._sequence_number = value
 
-    def from_bytes(self, data: bytes) -> None:
+    def from_bytes(self, data: bytes) -> Acknowledgement:
         self._sequence_number: int = int.from_bytes(data[:4], 'big')
+        return self
 
     def to_bytes(self) -> bytes:
         bh: ChunkBasicHeader = ChunkBasicHeader(ControlStream.chunk_id, ControlStream.stream_id)
@@ -114,8 +118,9 @@ class WindowAcknowledgementSize:
     def window_size(self, value: int):
         self._window_size = value
 
-    def from_bytes(self, data: bytes) -> None:
+    def from_bytes(self, data: bytes) -> WindowAcknowledgementSize:
         self._window_size: int = int.from_bytes(data[:4], 'big')
+        return self
 
     def to_bytes(self) -> bytes:
         bh: ChunkBasicHeader = ChunkBasicHeader(ControlStream.chunk_id, ControlStream.stream_id)
@@ -149,9 +154,10 @@ class SetPeerBandwidth:
     def limit_type(self, value: LimitType) -> None:
         self._limit_type = value
 
-    def from_bytes(self, data: bytes) -> None:
+    def from_bytes(self, data: bytes) -> SetPeerBandwidth:
         self._window_size: int = int.from_bytes(data[:4], 'big')
         self._limit_type: LimitType = int(data[4])
+        return self
 
     def to_bytes(self) -> bytes:
         bh: ChunkBasicHeader = ChunkBasicHeader(ControlStream.chunk_id, ControlStream.stream_id)
@@ -183,11 +189,12 @@ class UserControlMessage:
         self._event_type: UserControlEventType = event_type
         self._event_data: list = event_data
 
-    def from_bytes(self, data: bytes) -> None:
+    def from_bytes(self, data: bytes) -> UserControlMessage:
         self._event_type: UserControlEventType = int.from_bytes(data[:2], 'big')
         self._event_data[0] = int.from_bytes(data[2:6], 'big')
         if self._event_type == UserControlEventType.SetBufferLength:
             self._event_data[1] = int.from_bytes(data[2:6], 'big')
+        return self
 
     @property
     def event_type(self) -> UserControlEventType:

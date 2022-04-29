@@ -4,6 +4,7 @@ from datetime import datetime
 from enum import IntEnum
 from typing import Union
 from .chunk import CS0, CSn, Chunk, ChunkMessageHeader
+from .messages.amf0 import Number, String
 from .messages.command import Command, ResultCommand, OnBWDoneCommand
 from .messages.control import SetChunkSize
 from .messages.control import WindowAcknowledgementSize, SetPeerBandwidth, UserControlMessage
@@ -33,7 +34,6 @@ class Connection:
         self._s1: CSn = CSn(int(datetime.now().timestamp()), 0, secrets.token_bytes(1528))
         self._state: State = State.Initial
         self._chunk: Chunk = Chunk()
-        self._chunk_size: int = SetChunkSize().chunk_size
         print(f'RTMP connect from {self._address}')
 
     def on_read_event(self, key, buffer):
@@ -86,15 +86,29 @@ class Connection:
         for c in data:
             print(f'{c:x} ', end='')
         print(f'of {len(data)}')
-        if header.message_type_id == Command.amf0_type_id:
-            command: Union[Command, None] = Command.make(data, self._chunk_size)
+        if header.message_type_id == SetChunkSize.type_id:
+            self._chunk.size = SetChunkSize().from_bytes(data).chunk_size
+            print(f'new chunk size={self._chunk.size}')
+        elif header.message_type_id == Command.amf0_type_id:
+            command: Union[Command, None] = Command.make(data, self._chunk.size)
             if command and command.type == 'connect':
-                print(f'{str(command)}')
+                print(command)
                 out_data.outb = WindowAcknowledgementSize().to_bytes() +\
                     SetPeerBandwidth().to_bytes() +\
                     UserControlMessage().to_bytes() +\
                     SetChunkSize().to_bytes() +\
-                    ResultCommand(command.transaction_id, self._chunk_size).to_bytes() +\
-                    OnBWDoneCommand(0., self._chunk_size).to_bytes()
-            elif command:
-                print(f'command: {command.type}')
+                    ResultCommand(command.transaction_id, self._chunk.size,
+                                  {
+                                      'fmsVer': String('FMS/3,0,1,123'),
+                                      'capabilities': Number(31.)
+                                  },
+                                  {
+                                      'level': String('status'),
+                                      'code': String('NetConnection.Connect.Success'),
+                                      'description': String('Connection succeeded.'),
+                                      'objectEncoding': Number(0.)
+                                  }).to_bytes() +\
+                    OnBWDoneCommand(0., self._chunk.size).to_bytes()
+            elif command and command.type == 'releaseStream':
+                print(command)
+                out_data.outb = ResultCommand(command.transaction_id, self._chunk.size).to_bytes()
