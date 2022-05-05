@@ -185,9 +185,9 @@ class UserControlMessage:
 
     def __init__(self,
                  event_type: UserControlEventType = UserControlEventType.StreamBegin,
-                 event_data: list = (0, 0)) -> None:
+                 event_data: list = None) -> None:
         self._event_type: UserControlEventType = event_type
-        self._event_data: list = event_data
+        self._event_data: list = event_data if event_data else (0, 0)
 
     def from_bytes(self, data: bytes) -> UserControlMessage:
         self._event_type: UserControlEventType = int.from_bytes(data[:2], 'big')

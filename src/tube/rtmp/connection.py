@@ -5,9 +5,9 @@ from enum import IntEnum
 from typing import Union
 from .chunk import CS0, CSn, Chunk, ChunkMessageHeader
 from .messages.amf0 import Number, String
-from .messages.command import Command, ResultCommand, OnBWDoneCommand
+from .messages.command import Command, ResultCommand, Publish
 from .messages.control import SetChunkSize
-from .messages.control import WindowAcknowledgementSize, SetPeerBandwidth, UserControlMessage
+from .messages.control import WindowAcknowledgementSize, SetPeerBandwidth, UserControlMessage, UserControlEventType
 
 State: IntEnum = IntEnum('State', ('Initial',
                                    'Handshake'
@@ -34,6 +34,8 @@ class Connection:
         self._s1: CSn = CSn(int(datetime.now().timestamp()), 0, secrets.token_bytes(1528))
         self._state: State = State.Initial
         self._chunk: Chunk = Chunk()
+        self._stream_id: float = 1.
+        self._publishing_name: str = ''
         print(f'RTMP connect from {self._address}')
 
     def on_read_event(self, key, buffer):
@@ -89,26 +91,60 @@ class Connection:
         if header.message_type_id == SetChunkSize.type_id:
             self._chunk.size = SetChunkSize().from_bytes(data).chunk_size
             print(f'new chunk size={self._chunk.size}')
+            out_data.outb = ResultCommand(0., self._chunk.size,
+                                          additional=Number(8192.).to_bytes(),
+                                          name='onBWDone').to_bytes()
         elif header.message_type_id == Command.amf0_type_id:
             command: Union[Command, None] = Command.make(data, self._chunk.size)
-            if command and command.type == 'connect':
+            if command:
                 print(command)
-                out_data.outb = WindowAcknowledgementSize().to_bytes() +\
-                    SetPeerBandwidth().to_bytes() +\
-                    UserControlMessage().to_bytes() +\
-                    SetChunkSize().to_bytes() +\
-                    ResultCommand(command.transaction_id, self._chunk.size,
-                                  {
-                                      'fmsVer': String('FMS/3,0,1,123'),
-                                      'capabilities': Number(31.)
-                                  },
-                                  {
-                                      'level': String('status'),
-                                      'code': String('NetConnection.Connect.Success'),
-                                      'description': String('Connection succeeded.'),
-                                      'objectEncoding': Number(0.)
-                                  }).to_bytes() +\
-                    OnBWDoneCommand(0., self._chunk.size).to_bytes()
-            elif command and command.type == 'releaseStream':
-                print(command)
-                out_data.outb = ResultCommand(command.transaction_id, self._chunk.size).to_bytes()
+                {
+                    'connect': self._on_connect,
+                    'releaseStream': self._on_release_stream,
+                    'FCPublish': self._on_fc_publish,
+                    'createStream': self._on_create_stream,
+                    '_checkbw': self._on_check_bw,
+                    'publish': self._on_publish,
+                }.get(command.type, None)(command, out_data)
+
+    def _on_connect(self, command: Command, out_data):
+        out_data.outb = WindowAcknowledgementSize().to_bytes() + \
+                        SetPeerBandwidth().to_bytes() + \
+                        UserControlMessage().to_bytes() + \
+                        SetChunkSize().to_bytes() + \
+                        ResultCommand(command.transaction_id, self._chunk.size,
+                                      object={
+                                          'fmsVer': String('FMS/3,0,1,123'),
+                                          'capabilities': Number(31.)
+                                      },
+                                      args={
+                                          'level': String('status'),
+                                          'code': String('NetConnection.Connect.Success'),
+                                          'description': String('Connection succeeded.'),
+                                          'objectEncoding': Number(0.)
+                                      }).to_bytes()
+
+    def _on_release_stream(self, command: Command, out_data):
+        out_data.outb = ResultCommand(command.transaction_id, self._chunk.size).to_bytes()
+
+    def _on_fc_publish(self, command: Command, out_data):
+        out_data.outb = ResultCommand(command.transaction_id, self._chunk.size, name='onFCPublish').to_bytes()
+
+    def _on_create_stream(self, command: Command, out_data):
+        out_data.outb = ResultCommand(command.transaction_id, self._chunk.size,
+                                      additional=Number(self._stream_id).to_bytes()).to_bytes()
+
+    def _on_check_bw(self, command: Command, out_data):
+        out_data.outb = ResultCommand(command.transaction_id, self._chunk.size).to_bytes()
+
+    def _on_publish(self, command: Publish, out_data):
+        self._publishing_name = command.publishing_name
+        out_data.outb = UserControlMessage(UserControlEventType.StreamBegin, [1, 0]).to_bytes() +\
+            ResultCommand(0, self._chunk.size,
+                          args={
+                              'level': String('status'),
+                              'code': String('NetStream.Publish.Start'),
+                              'description': String(f'{command.publishing_name} is now published'),
+                              'details': String(command.publishing_name)
+                          },
+                          name='onStatus').to_bytes()

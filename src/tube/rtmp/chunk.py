@@ -94,11 +94,11 @@ class ChunkMessageHeader:
 
     def _type0(self, message: bytes):
         self._type1(message)
-        self.message_stream_id = int.from_bytes(message[7:11], byteorder='big')
+        self.message_stream_id = int.from_bytes(message[7:11], byteorder='little')
         self._length += 4
 
     def _type0_to_bytes(self) -> bytes:
-        return self._type1_to_bytes() + self.message_stream_id.to_bytes(4, 'big')
+        return self._type1_to_bytes() + self.message_stream_id.to_bytes(4, 'little')
 
     def _type1(self, message: bytes):
         self._type2(message)

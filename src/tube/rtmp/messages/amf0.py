@@ -107,9 +107,9 @@ class String(Type):
 
 
 class Object(Type):
-    def __init__(self, value: Dict[str: Any, ...] = dict()):
+    def __init__(self, value: Dict[str: Any, ...] = None):
         super().__init__(TypeMarker.Object)
-        self._value = value
+        self._value = value if value else dict()
         self._size = 4
         for item in self._value.items():
             self._size += len(item[0]) + 2 + len(item[1])
@@ -161,9 +161,9 @@ class Reference(Type):
 
 
 class EcmaArray(Type):
-    def __init__(self, value: Dict[str: Any, ...] = dict()):
+    def __init__(self, value: Dict[str: Any, ...] = None):
         super().__init__(TypeMarker.EcmaArray)
-        self._value = value
+        self._value = value if value else dict()
         self._size = 4
         for item in self._value.items():
             self._size += len(item[0]) + 2 + len(item[1])
@@ -188,9 +188,9 @@ class EcmaArray(Type):
 
 
 class StrictArray(Type):
-    def __init__(self, value: List[Type] = []):
+    def __init__(self, value: List[Type] = None):
         super().__init__(TypeMarker.StrictArray)
-        self._value = value
+        self._value = value if value else []
         self._size = 4
         for item in self._value:
             self._size += len(item)
