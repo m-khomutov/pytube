@@ -8,6 +8,7 @@ from .messages.amf0 import Number, String
 from .messages.command import Command, ResultCommand, Publish
 from .messages.control import SetChunkSize
 from .messages.control import WindowAcknowledgementSize, SetPeerBandwidth, UserControlMessage, UserControlEventType
+from .messages.data import Metadata
 
 State: IntEnum = IntEnum('State', ('Initial',
                                    'Handshake'
@@ -106,6 +107,8 @@ class Connection:
                     '_checkbw': self._on_check_bw,
                     'publish': self._on_publish,
                 }.get(command.type, None)(command, out_data)
+        elif header.message_type_id == Metadata.amf0_type_id:
+            metadata: Metadata = Metadata(data)
 
     def _on_connect(self, command: Command, out_data):
         out_data.outb = WindowAcknowledgementSize().to_bytes() + \
