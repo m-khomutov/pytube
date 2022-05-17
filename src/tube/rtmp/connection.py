@@ -8,7 +8,7 @@ from .messages.amf0 import Number, String
 from .messages.command import Command, ResultCommand, Publish
 from .messages.control import SetChunkSize
 from .messages.control import WindowAcknowledgementSize, SetPeerBandwidth, UserControlMessage, UserControlEventType
-from .messages.data import Metadata
+from .messages.data import Data
 
 State: IntEnum = IntEnum('State', ('Initial',
                                    'Handshake'
@@ -86,9 +86,6 @@ class Connection:
 
     def _on_command(self, header: ChunkMessageHeader, data: bytes, out_data):
         print(header)
-        for c in data:
-            print(f'{c:x} ', end='')
-        print(f'of {len(data)}')
         if header.message_type_id == SetChunkSize.type_id:
             self._chunk.size = SetChunkSize().from_bytes(data).chunk_size
             print(f'new chunk size={self._chunk.size}')
@@ -107,8 +104,9 @@ class Connection:
                     '_checkbw': self._on_check_bw,
                     'publish': self._on_publish,
                 }.get(command.type, None)(command, out_data)
-        elif header.message_type_id == Metadata.amf0_type_id:
-            metadata: Metadata = Metadata(data)
+        elif header.message_type_id == Data.amf0_type_id:
+            m_data: Union[Data, None] = Data.make(data)
+            print(f'{m_data}')
 
     def _on_connect(self, command: Command, out_data):
         out_data.outb = WindowAcknowledgementSize().to_bytes() + \

@@ -36,6 +36,7 @@ class Type:
             TypeMarker.String: String(),
             TypeMarker.Object: Object(),
             TypeMarker.Null: Null(),
+            TypeMarker.EcmaArray: EcmaArray(),
         }.get(marker, lambda: None)
         rc.from_bytes(data[1:])
         return rc

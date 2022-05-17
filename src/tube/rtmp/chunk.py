@@ -1,5 +1,6 @@
 """RTMP protocol message format"""
-from collections import namedtuple
+from __future__ import annotations
+from collections import namedtuple, defaultdict
 
 CS0 = namedtuple('CS0', 'version')
 CSn = namedtuple('CSn', 'time time2 random')
@@ -26,7 +27,7 @@ class ChunkBasicHeader:
         self.chunk_stream_id: int = stream_id
         self._length = 1
 
-    def from_bytes(self, message: bytes):
+    def from_bytes(self, message: bytes) -> ChunkBasicHeader:
         self.chunk_type: int = message[0] >> 6
         self.chunk_stream_id: int = message[0] & 0x3f
         if self.chunk_stream_id == 0:
@@ -35,6 +36,7 @@ class ChunkBasicHeader:
         elif self.chunk_stream_id == 1:
             self.chunk_stream_id = int(message[2]) * 256 + int(message[1]) + 64
             self._length = 3
+        return self
 
     def to_bytes(self) -> bytes:
         rc = [(self.chunk_type << 6)]
@@ -70,7 +72,7 @@ class ChunkMessageHeader:
         self.message_stream_id: int = 0
         self._length: int = 0
 
-    def from_bytes(self, message: bytes):
+    def from_bytes(self, message: bytes) -> ChunkMessageHeader:
         """Parses three parts of Chunk Header"""
         basic_header: ChunkBasicHeader = ChunkBasicHeader()
         basic_header.from_bytes(message)
@@ -83,6 +85,7 @@ class ChunkMessageHeader:
         if self.timestamp == 0xffffff:
             self.timestamp = int(message[self._length:self._length+4])
             self._length += 4
+        return self
 
     def to_bytes(self, basic_header: ChunkBasicHeader) -> bytes:
         return basic_header.to_bytes() +\
@@ -141,9 +144,11 @@ class Chunk:
 
     def __init__(self):
         self._size = self.__class__._default_size
-        self._header: ChunkMessageHeader = ChunkMessageHeader()
+        self._header: defaultdict = defaultdict(lambda: ChunkMessageHeader())
+        self._chunk_stream_id: int = 0
         self._data: bytearray = bytearray()
         self._start_of_chunk: bool = True
+        self._filled_part_of_chunk: int = 0
 
     @property
     def size(self) -> int:
@@ -158,22 +163,31 @@ class Chunk:
         offset: int = 0
         while offset < len(buffer):
             if self._start_of_chunk:
-                self._header.from_bytes(buffer[offset:offset+11])
-                offset += len(self._header)
-            rc: int = self._store_data(buffer[offset:offset+self._size])
-            self._start_of_chunk = rc >= self._size
+                self._filled_part_of_chunk = 0
+                self._chunk_stream_id = ChunkBasicHeader().from_bytes(buffer[offset:offset+3]).chunk_stream_id
+                self._header[self._chunk_stream_id].from_bytes(buffer[offset:offset+12])
+                offset += len(self._header[self._chunk_stream_id])
+            rc: int = self._store_data(buffer[offset:offset+self._free_part()])
+            self._start_of_chunk = self._filled_part_of_chunk >= self._size
             offset += rc
             if self._ready():
-                callback(self._header, self._data, out_data)
+                callback(self._header[self._chunk_stream_id], self._data, out_data)
                 self._reset()
 
+    def _free_part(self):
+        free_in_chunk: int = self._size - self._filled_part_of_chunk
+        free_in_message: int = self._header[self._chunk_stream_id].message_length - len(self._data)
+        return free_in_chunk if free_in_chunk < free_in_message else free_in_message
+
     def _ready(self) -> bool:
-        return len(self._data) == self._header.message_length
+        return len(self._data) == self._header[self._chunk_stream_id].message_length
 
     def _store_data(self, buffer: bytes) -> int:
-        self._data += buffer[:self._header.message_length]
-        return len(buffer) if self._header.message_length > len(buffer) else self._header.message_length
+        self._data += buffer
+        self._filled_part_of_chunk += len(buffer)
+        return len(buffer)
 
     def _reset(self):
         self._start_of_chunk = True
+        self._filled_part_of_chunk = 0
         self._data = b''
