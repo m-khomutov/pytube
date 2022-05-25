@@ -33,6 +33,13 @@ class Box(Atom):
         self._compatible_brands = \
             set(map(lambda x: self._read_some(file, 4).decode("utf-8"), range(left)))
 
+    def init_from_args(self, **kwargs):
+        self.type = 'ftyp'
+        self.major_brand = kwargs.get('major_brand')
+        self.minor_version = kwargs.get('minor_version')
+        self._compatible_brands = kwargs.get('compatible_brands')
+        self.size += 8 + 4 * len(self._compatible_brands)
+
     def to_bytes(self):
         ret = super().to_bytes()
         ret += str.encode(self.major_brand) + self.minor_version.to_bytes(4, byteorder='big')

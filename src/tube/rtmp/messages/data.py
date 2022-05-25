@@ -43,10 +43,10 @@ class Metadata(Data):
         super().__init__(data)
         if self._type != 'onMetaData':
             raise DataMessageException(f'invalid type: {self._type}. onMetadata expected')
-        self._object: Amf0 = Amf0.make(data[self._size:])
+        self.object: Amf0 = Amf0.make(data[self._size:])
 
     def __repr__(self):
-        return f'{self.__class__.__name__}(object={self._object})'
+        return f'{self.__class__.__name__}(object={self.object})'
 
 
 VideoCodecId: IntEnum = IntEnum('VideoCodecId', ('Jpeg',
@@ -65,7 +65,6 @@ PacketType: IntEnum = IntEnum('PacketType', ('SequenceHeader',
                               )
 VideoTag: namedtuple = namedtuple('VideoTag', 'frame_type codec_id')
 AvcPacket: namedtuple = namedtuple('AvcPacket', 'type composition_time')
-SequenceHeader: namedtuple
 
 
 class AVCDecoderConfigurationRecord:
@@ -176,8 +175,15 @@ SoundType: IntEnum = IntEnum('SoundType', ('sndMono',
                                            ),
                              start=0
                              )
+AudioTag: namedtuple = namedtuple('AudioTag', 'format rate size type')
 
 
 class AudioData:
     def __init__(self, data: bytes, callback) -> None:
-        callback(PacketType.Payload, data)
+        self._tag: AudioTag = AudioTag(data[0] >> 4, (data[0] >> 2) & 3, (data[0] >> 1) & 1, data[0] & 1)
+        self._packet_type: PacketType = data[1]
+        print(f'{self._tag} : {self._packet_type}')
+        callback(self._packet_type, data[2:])
+
+    def __repr__(self):
+        return f'{self.__class__.__name__}(tag={self._tag})'

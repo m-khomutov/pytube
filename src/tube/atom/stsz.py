@@ -36,6 +36,10 @@ class Box(FullBox):
         self.entries = []
         self.sample_size = 0
 
+    def append(self, entry: int):
+        self.entries.append(entry)
+        self.size += 4
+
     def to_bytes(self):
         ret = super().to_bytes()
         ret += self.sample_size.to_bytes(4, byteorder='big')

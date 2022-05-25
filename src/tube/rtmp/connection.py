@@ -9,6 +9,7 @@ from .messages.command import Command, ResultCommand, Publish
 from .messages.control import SetChunkSize
 from .messages.control import WindowAcknowledgementSize, SetPeerBandwidth, UserControlMessage, UserControlEventType
 from .messages.data import DataMessageException, Data, VideoData, AudioData, PacketType
+from ..mp4sink import Mp4Sink
 
 State: IntEnum = IntEnum('State', ('Initial',
                                    'Handshake'
@@ -28,7 +29,6 @@ class Connection:
         return 3
 
     def __init__(self, address, params):
-        self._root: str = params.get("root", ".")
         self._verbal: bool = params.get("verb", False)
         self._address: str = address
         self._c1: CSn = CSn(0, 0, b'')
@@ -36,7 +36,7 @@ class Connection:
         self._state: State = State.Initial
         self._chunk: Chunk = Chunk()
         self._stream_id: float = 1.
-        self._publishing_name: str = ''
+        self._mp4sink: Mp4Sink = Mp4Sink(params.get('root', '.'))
         print(f'RTMP connect from {self._address}')
 
     def on_read_event(self, key, buffer):
@@ -149,7 +149,7 @@ class Connection:
         out_data.outb = ResultCommand(command.transaction_id, self._chunk.size).to_bytes()
 
     def _on_publish(self, command: Publish, out_data) -> None:
-        self._publishing_name = command.publishing_name
+        self._mp4sink.on_publish(command.publishing_name)
         out_data.outb = UserControlMessage(UserControlEventType.StreamBegin, [1, 0]).to_bytes() +\
             ResultCommand(0, self._chunk.size,
                           args={
@@ -162,7 +162,8 @@ class Connection:
 
     def _on_metadata(self, data: bytes, **kwargs) -> None:
         metadata: Union[Data, None] = Data.make(data)
-        print(f'{metadata}')
+        if metadata:
+            self._mp4sink.on_metadata(metadata.object.value)
 
     def _on_video_packet(self, data: bytes, **kwargs) -> None:
         try:
@@ -172,15 +173,15 @@ class Connection:
 
     def _video_callback(self, packet_type: PacketType, payload: bytes) -> None:
         if packet_type == PacketType.SequenceHeader:
-            print(VideoData.configuration)
-        for i in payload[:10]:
-            print(f'{i:x}', end=' ')
-        print(f' of {len(payload)}')
+            self._mp4sink.on_video_config(payload)
+        else:
+            self._mp4sink.on_videodata(payload)
 
     def _on_audio_packet(self, data: bytes, **kwargs) -> None:
         AudioData(data, self._audio_callback)
 
     def _audio_callback(self, packet_type: PacketType, payload: bytes) -> None:
-        for i in payload[:5]:
-            print(f'{i:x}', end=' ')
-        print(f' of {len(payload)}')
+        if packet_type == PacketType.SequenceHeader:
+            self._mp4sink.on_audio_config(payload)
+        else:
+            self._mp4sink.on_audiodata(payload)
