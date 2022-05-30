@@ -69,6 +69,12 @@ class Number(Type):
         self._value = value
         self._size = 9
 
+    def __float__(self):
+        return self._value
+
+    def __int__(self):
+        return int(self._value)
+
     def from_bytes(self, data: bytes) -> Type:
         self._value = struct.unpack('>d', data[:8])[0]
         return self
@@ -83,6 +89,9 @@ class Boolean(Type):
         self._value = value
         self._size = 2
 
+    def __bool__(self):
+        return self._value
+
     def from_bytes(self, data: bytes) -> Type:
         self._value = data[0] != b'\x00'
         return self
@@ -96,6 +105,9 @@ class String(Type):
         super().__init__(TypeMarker.String)
         self._value = value
         self._size = 3 + len(value)
+
+    def __str__(self):
+        return self._value
 
     def from_bytes(self, data: bytes) -> Type:
         size: int = struct.unpack('>H', data[:2])[0]
@@ -233,6 +245,9 @@ class LongString(Type):
         super().__init__(TypeMarker.LongString)
         self._value = value
         self._size = 5 + len(value)
+
+    def __str__(self):
+        return self._value
 
     def from_bytes(self, data: bytes) -> Type:
         size: int = struct.unpack('>I', data[:4])[0]

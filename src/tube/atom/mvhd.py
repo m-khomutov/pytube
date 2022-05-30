@@ -1,6 +1,7 @@
 """Defines overall information which is media-independent,
    and relevant to the entire presentation considered as a whole
 """
+import time
 from functools import reduce
 from .atom import FullBox, full_box_derived
 
@@ -54,6 +55,18 @@ class Box(FullBox):
         )
         self._read_some(file, 24)
         self.next_track_id = int.from_bytes(self._read_some(file, 4), "big")
+
+    def init_from_args(self, **kwargs):
+        super().init_from_args(**kwargs)
+        self.type = atom_type()
+        self.time = kwargs.get('creation_time', int(time.time())), kwargs.get('modification_time', int(time.time()))
+        self.timescale = kwargs.get('timescale', 0)
+        self.duration = kwargs.get('duration', 0)
+        self.rate = kwargs.get('rate', 0x00010000)
+        self.volume = kwargs.get('volume', 0x0100)
+        self.matrix = kwargs.get('matrix', [0x00010000, 0, 0, 0, 0x00010000, 0, 0, 0, 0x40000000])
+        self.next_track_id = kwargs.get('next_track_id', 1)
+        self.size = 120 if self.version == 1 else 108
 
     def to_bytes(self):
         ret = super().to_bytes()

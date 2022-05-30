@@ -1,4 +1,5 @@
 """Track header, overall information about the track"""
+import time
 from functools import reduce
 from .atom import FullBox, full_box_derived
 
@@ -63,17 +64,32 @@ class Box(FullBox):
         self.width = int.from_bytes(self._read_some(file, 4), "big")
         self.height = int.from_bytes(self._read_some(file, 4), "big")
 
+    def init_from_args(self, **kwargs):
+        super().init_from_args(**kwargs)
+        self.type = atom_type()
+        self.timing = kwargs.get('creation_time', int(time.time())), kwargs.get('modification_time', int(time.time()))
+        self.track_id = kwargs.get('track_id', 0)
+        self.duration = kwargs.get('duration', 0)
+        self.track_info = (kwargs.get('layer', 0),
+                           kwargs.get('alternate_group', 0),
+                           kwargs.get('volume', 0),
+                           )
+        self.matrix = kwargs.get('matrix', [0x00010000, 0, 0, 0, 0x00010000, 0, 0, 0, 0x40000000])
+        self.width = kwargs.get('width', 0)
+        self.height = kwargs.get('height', 0)
+        self.size = 104 if self.version == 1 else 92
+
     def to_bytes(self):
         result = super().to_bytes()
         if self.version == 1:
-            for time in self.timing:
-                result += time.to_bytes(8, byteorder='big')
+            for t in self.timing:
+                result += t.to_bytes(8, byteorder='big')
             result += self.track_id.to_bytes(4, byteorder='big')
             result += (0).to_bytes(4, byteorder='big')
             result += self.duration.to_bytes(8, byteorder='big')
         else:
-            for time in self.timing:
-                result += time.to_bytes(4, byteorder='big')
+            for t in self.timing:
+                result += t.to_bytes(4, byteorder='big')
             result += self.track_id.to_bytes(4, byteorder='big')
             result += (0).to_bytes(4, byteorder='big')
             result += self.duration.to_bytes(4, byteorder='big')

@@ -28,6 +28,13 @@ class Box(FullBox):
         if left > 0:
             self.name = self._read_some(file, left).decode("utf-8")
 
+    def init_from_args(self, **kwargs):
+        super().init_from_args(**kwargs)
+        self.type = atom_type()
+        self.handler_type = kwargs.get('handler_type', 'vide')
+        self.name = kwargs.get('name', 'VideoHandler')
+        self.size = 32 + len(self.name)
+
     def to_bytes(self):
         ret = super().to_bytes() +\
               (0).to_bytes(4, byteorder='big') + \
