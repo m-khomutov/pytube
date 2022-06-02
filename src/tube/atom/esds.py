@@ -8,7 +8,7 @@ class Descriptor:
     def __init__(self, tag, file):
         self._tag = tag
         self._indicator = file.read(1)
-        if int.from_bytes(self.indicator, "big") == 0x80:
+        if self.indicator[0] == 0x80:
             self._indicator += file.read(2)
             self._length = file.read(1)[0]
         else:
@@ -196,7 +196,7 @@ class Box(FullBox):
                 4: lambda: ConfigDescriptor(file),
                 5: lambda: DecoderSpecificDescriptor(file),
                 6: lambda: SLConfigDescriptor(file),
-            }.get(tag, lambda: None)
+            }.get(tag, lambda: None)()
             if descriptor:
                 self.descriptors.append(descriptor)
             else:

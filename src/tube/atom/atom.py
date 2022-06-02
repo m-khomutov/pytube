@@ -10,10 +10,12 @@ class BoxIterator:
         self._index = 0
 
     def __next__(self):
-        if self._index < len(self._box.inner_boxes):
-            result = self._box.inner_boxes[self._index]
+        try:
+            result = self._box[self._index]
             self._index += 1
             return result
+        except IndexError:
+            pass
         raise StopIteration
 
     @property
@@ -63,6 +65,9 @@ class Box:
 
     def __str__(self):
         return self.__repr__()
+
+    def __getitem__(self, item):
+        return self._inner_boxes[item]
 
     def __iter__(self):
         return BoxIterator(self)

@@ -34,9 +34,15 @@ class SampleEntry(Atom):
     def __repr__(self):
         return super().__repr__() + f" dataRefIdx:{self.data_reference_index}"
 
+    def init_from_args(self, **kwargs):
+        super().init_from_args(**kwargs)
+        self.type = kwargs.get('format', 'vide')
+        self.data_reference_index = kwargs.get('data_reference_index', 1)
+        self.size = 16
+
     def to_bytes(self):
         """Returns sample entry as bytestream, ready to be sent to socket"""
-        ret = super().to_bytes() + bytearray(6)
+        ret = super().to_bytes() + bytes(6)
         ret += self.data_reference_index.to_bytes(2, byteorder='big')
         return ret
 
@@ -58,19 +64,19 @@ class VisualSampleEntry(SampleEntry):
             self.color_depth = int.from_bytes(self._read_some(file, 2), "big")
             self._read_some(file, 2)
             left = self.size - (file.tell()-self.position)
-            self.inner_boxes = {}  # [avcC hvcC pasp fiel]
+            self._coding_boxes = {}  # [avcC hvcC pasp fiel]
             while left > 0:
                 box = Atom(file=file, depth=self._depth + 1)
                 file.seek(box.position)
-                inner_box = {
+                coding_box = {
                     'avcC': lambda: avcc.Box(file=file, depth=self._depth + 1),
                     'hvcC': lambda: hvcc.Box(file=file, depth=self._depth + 1),
                     'pasp': lambda: pasp.Box(file=file, depth=self._depth + 1),
                     'fiel': lambda: fiel.Box(file=file, depth=self._depth + 1),
                 }.get(box.type, lambda: None)()
-                if inner_box:
-                    self.inner_boxes[box.type] = inner_box
-                    left -= inner_box.size
+                if coding_box:
+                    self._coding_boxes[box.type] = coding_box
+                    left -= coding_box.size
                 else:
                     file.seek(box.position + box.size)
                     left -= box.size
@@ -83,12 +89,21 @@ class VisualSampleEntry(SampleEntry):
             " v_resolution:" + hex(self.resolution[1]) + \
             f" frame_count:{self.frame_count}" + \
             f" depth:{self.color_depth}\n" + \
-            '\n'.join(str(self.inner_boxes[k]) for k in self.inner_boxes)
+            '\n'.join(str(self._coding_boxes[k]) for k in self._coding_boxes)
         return ret
 
-    def get(self, box_type):
-        """Returns inner box by its type"""
-        return self.inner_boxes.get(box_type, None)
+    def __getitem__(self, item):
+        return self._coding_boxes.get(item, None)
+
+    def init_from_args(self, **kwargs):
+        super().init_from_args(**kwargs)
+        self.type = kwargs.get('format', 'vide')
+        self.geometry = kwargs.get('width', 0), kwargs.get('height', 0)
+        self.resolution = kwargs.get('hresolution', 0x00480000), kwargs.get('vresolution', 0x00480000)
+        self.frame_count = kwargs.get('frame_count', 1)
+        self.compressor_name = kwargs.get('compressor', ' '*32)
+        self.color_depth = kwargs.get('depth', 0x0018)
+        self.size = 16
 
     def to_bytes(self):
         ret = super().to_bytes()
@@ -102,8 +117,8 @@ class VisualSampleEntry(SampleEntry):
         ret += str.encode(self.compressor_name)
         ret += self.color_depth.to_bytes(2, byteorder='big')
         ret += (0xffff).to_bytes(2, byteorder='big')
-        for key in self.inner_boxes:
-            ret += self.inner_boxes[key].to_bytes()
+        for box in self._coding_boxes.values():
+            ret += box.to_bytes()
         return ret
 
 
@@ -419,8 +434,8 @@ class Box(FullBox):
         """Returns AVC or HVC ConfigurationBox"""
         if self.handler == 'vide' and self.entries:
             if self.video_stream_type == VideoCodecType.AVC:
-                return self.entries[0].get('avcC')
-            return self.entries[0].get('hvcC')
+                return self.entries[0]['avcC']
+            return self.entries[0]['hvcC']
         return None
 
     def normalize(self):
@@ -434,9 +449,9 @@ class Box(FullBox):
         """Reads entry of specific type"""
         if self.handler == 'vide':
             entry = VisualSampleEntry(file=file, depth=self._depth+1)
-            if entry.inner_boxes.get('avcC'):
+            if entry['avcC']:
                 self.video_stream_type = VideoCodecType.AVC
-            elif entry.inner_boxes.get('hvcC'):
+            elif entry['hvcC']:
                 self.video_stream_type = VideoCodecType.HEVC
             return entry
         if self.handler == 'soun':

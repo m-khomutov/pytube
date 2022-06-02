@@ -176,11 +176,11 @@ class Session:
         ret = ''
         if stsd_boxes:
             ret += 'm=video 0 RTP/AVP 96\r\n'
-            avc_box = stsd_boxes[0].inner_boxes.get('avcC')
+            avc_box = stsd_boxes[0]['avcC']
             if avc_box is not None:
                 ret += self._make_avc_sdp(track_id, avc_box)
             else:
-                hevc_box = stsd_boxes[0].inner_boxes.get('hvcC')
+                hevc_box = stsd_boxes[0]['hvcC']
                 if hevc_box is not None:
                     ret += self._make_hevc_sdp(track_id, hevc_box)
         return ret
@@ -190,8 +190,8 @@ class Session:
         self._play_range = PlayRange(track_id, self._reader.media_duration_sec)
         ret = 'a=rtpmap:96 H264/90000\r\n' + \
               'a=fmtp:96 packetization-mode=1' + \
-              '; sprop-parameter-sets=' + avc_box.sprop_parameter_sets + \
-              '; profile-level-id=' + \
+              ';sprop-parameter-sets=' + avc_box.sprop_parameter_sets + \
+              ';profile-level-id=' + \
               avc_box.profile_level_id + '\r\n' + \
               'a=range:' + self._play_range.clock
         return ret + 'a=control:' + str(track_id) + '\r\n'

@@ -179,7 +179,7 @@ class Streamer:
 
     def next_frame(self, reader, track_id, end_time, verbal):
         """Reads and returns next frame from mp4 file"""
-        if self._rtp_header is None or self._position >= end_time:
+        if not self._rtp_header or self._position >= end_time:
             return b''
         return self._frame(reader, track_id, verbal)
 

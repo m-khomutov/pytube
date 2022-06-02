@@ -15,7 +15,7 @@ class DashMpd:
         self._value.set('maxSegmentDuration', f'PT{dt[0]}H{dt[1]}M{dt[2]}S')
         self._value.set('profiles', 'urn:mpeg:dash:profile:full:2011')
         info = xmlTree.SubElement(self._value, 'ProgramInformation')
-        info.set('moreInformationURL', 'https://github.com/m-khomutov/pyfmp4')
+        info.set('moreInformationURL', 'https://github.com/m-khomutov/pytube')
         title = xmlTree.SubElement(info, 'Title')
         title.text = title_text
         period = xmlTree.SubElement(self._value, 'Period')

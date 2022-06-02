@@ -139,8 +139,8 @@ def handler(params):
             elif self.path.endswith(('.m4s', '.mp4')):
                 try:
                     self._stream_segment()
-                except: # noqa # pylint: disable=bare-except
-                    pass
+                except Exception as e: # noqa # pylint: disable=bare-except
+                    print(e)
             elif self.path.endswith('.vtt'):
                 self._stream_file(os.path.join(self._root, self.path[1:]), 'text/vtt')
             else:
