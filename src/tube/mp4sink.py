@@ -4,7 +4,7 @@ import shutil
 import tempfile
 from collections import defaultdict
 from .rtmp.messages.data import VideoData, AudioData
-from .atom import atom, ftyp, mvhd, tkhd, hdlr, stsz
+from .atom import atom, ftyp, mvhd, tkhd, hdlr, stsd, stsz
 
 
 class Mp4Sink:
@@ -87,6 +87,7 @@ class Mp4Sink:
                                 )
             track.add_inner_box(atom.Box(type='minf'), 'mdia')
             track.add_inner_box(atom.Box(type='stbl'), 'minf')
+            track.add_inner_box(stsd.Box(), 'stbl')
             track.add_inner_box(self._stsz[tr], 'stbl')
             moov.add_inner_box(track)
         file.write(moov.to_bytes())

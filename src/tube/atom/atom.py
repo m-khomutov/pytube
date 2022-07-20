@@ -126,19 +126,19 @@ class Box:
     def to_bytes(self):
         """Returns the box as bytestream, ready to be sent to socket"""
         full_size = self.full_size()
+        ret = []
         if full_size >= 0xffffffff:
-            ret = (1).to_bytes(4, byteorder='big')
+            ret.append(b'\x00\x00\x00\x01')
         else:
-            ret = full_size.to_bytes(4, byteorder='big')
-        ret += str.encode(self.type)
+            ret.append(full_size.to_bytes(4, byteorder='big'))
+        ret.append(self.type.encode())
         if full_size >= 0xffffffff:
-            ret += full_size.to_bytes(8, byteorder='big')
+            ret.append(full_size.to_bytes(8, byteorder='big'))
         if self.type == 'uuid':
-            ret += self._user_type
+            ret.append(self._user_type)
         if isinstance(self, Box):
-            for box in self._inner_boxes:
-                ret += box.to_bytes()
-        return ret
+            ret.extend([x.to_bytes() for x in self._inner_boxes])
+        return b''.join(ret)
 
     def full_size(self):
         """Returns whole size of the box with all inner boxes"""
@@ -196,7 +196,8 @@ class FullBox(Box):
         self.size = 12
 
     def to_bytes(self):
-        ret = super().to_bytes()
-        ret += self.version.to_bytes(1, byteorder='big')
-        ret += self.flags.to_bytes(3, byteorder='big')
-        return ret
+        ret = list()
+        ret.append(super().to_bytes())
+        ret.append(self.version.to_bytes(1, byteorder='big'))
+        ret.append(self.flags.to_bytes(3, byteorder='big'))
+        return b''.join(ret)

@@ -445,6 +445,11 @@ class Box(FullBox):
     def init_from_file(self, file):
         self.entries = self._read_entries(file)
 
+    def init_from_args(self, **kwargs):
+        super().init_from_args(**kwargs)
+        self.type = atom_type()
+        self.size = 16
+
     def _read_entry(self, file):
         """Reads entry of specific type"""
         if self.handler == 'vide':

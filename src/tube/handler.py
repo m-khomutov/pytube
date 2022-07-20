@@ -9,6 +9,7 @@ from http.server import BaseHTTPRequestHandler
 from .reader import Reader
 from .segmenter import SegmentMaker
 from .writer import Writer
+from .cdn import Cdn
 
 
 def handler(params):
@@ -111,6 +112,19 @@ def handler(params):
             self.end_headers()
             self.wfile.write(body)
 
+        def _stream_cdn(self):
+            try:
+                with Cdn(self._root, self.path) as f:
+                    self.send_response(200)
+                    for frame, delta_ts in f:
+                        self.wfile.write(frame)
+                        time.sleep(float(delta_ts)/1000)
+                    self.end_headers()
+            except FileNotFoundError:
+                self._reply_error(404)
+            except BrokenPipeError:
+                print('client finished connection')
+
         def _get_segment_maker(self, **kwargs):
             segment_maker = self.segment_makers.get(self.path)
             if segment_maker is None:
@@ -126,8 +140,11 @@ def handler(params):
             return segment_maker
 
         def _reply_error(self, code):
-            self.send_error(code)
-            self.end_headers()
+            try:
+                self.send_error(code)
+                self.end_headers()
+            except BrokenPipeError:
+                pass
 
         def do_GET(self): # noqa # pylint: disable=invalid-name
             """Manages HTTP GET request"""
@@ -143,6 +160,8 @@ def handler(params):
                     print(e)
             elif self.path.endswith('.vtt'):
                 self._stream_file(os.path.join(self._root, self.path[1:]), 'text/vtt')
+            elif self.path.endswith('?proto=cdn'):
+                self._stream_cdn()
             else:
                 extension = self.path[self.path.rfind('.'):]
                 if len(extension) > 1:
