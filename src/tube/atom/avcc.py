@@ -5,6 +5,11 @@ import base64
 from . import atom
 
 
+def atom_type():
+    """Returns this atom type"""
+    return 'avcC'
+
+
 class Box(atom.Box):
     """An MPEG-4 decoder configuration atom"""
     def __init__(self, *args, **kwargs):
@@ -51,6 +56,18 @@ class Box(atom.Box):
         if actual_size < self.size:
             self.appendix = self._read_some(file, self.size - actual_size)
 
+    def init_from_args(self, **kwargs):
+        self.type = atom_type()
+        self.initial_parameters = kwargs.get('initial', b'')
+        self._unit_len = kwargs.get('u_length', 4) - 1
+        self.sps = kwargs.get('sps', b'')
+        self.pps = kwargs.get('pps', b'')
+        self.size = 15
+        for s in self.sps:
+            self.size += 2 + len(s)
+        for s in self.pps:
+            self.size += 2 + len(s)
+
     def _read_parameter_set(self, file):
         """reads one parameter set from file"""
         length = int.from_bytes(self._read_some(file, 2), 'big')
@@ -75,16 +92,18 @@ class Box(atom.Box):
         return self._unit_len + 1
 
     def to_bytes(self):
-        ret = super().to_bytes() + self.initial_parameters
-        unit_length = 0xfc | self._unit_len
-        ret += unit_length.to_bytes(1, byteorder="big")
-        unit_length = 0xe0 | len(self.sps)
-        ret += unit_length.to_bytes(1, byteorder="big")
+        rc = [
+            super().to_bytes(),
+            self.initial_parameters,
+            (0xfc | self._unit_len).to_bytes(1, byteorder="big"),
+            (0xe0 | len(self.sps)).to_bytes(1, byteorder="big")
+        ]
         for sps in self.sps:
-            ret += len(sps).to_bytes(2, byteorder="big")
-            ret += sps
-        ret += len(self.pps).to_bytes(1, byteorder="big")
+            rc.append(len(sps).to_bytes(2, byteorder="big"))
+            rc.append(sps)
+        rc.append(len(self.pps).to_bytes(len(self.pps), byteorder="big"))
         for pps in self.pps:
-            ret += len(pps).to_bytes(2, byteorder="big")
-            ret += pps
-        return ret + self.appendix
+            rc.append(len(pps).to_bytes(2, byteorder="big"))
+            rc.append(pps)
+        rc.append(self.appendix)
+        return b''.join(rc)

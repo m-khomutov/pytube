@@ -27,7 +27,7 @@ class SampleEntry(Atom):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         file = kwargs.get("file", None)
-        if file is not None:
+        if file:
             self._read_some(file, 6)
             self.data_reference_index = int.from_bytes(self._read_some(file, 2), "big")
 
@@ -36,23 +36,27 @@ class SampleEntry(Atom):
 
     def init_from_args(self, **kwargs):
         super().init_from_args(**kwargs)
-        self.type = kwargs.get('format', 'vide')
+        self.type = kwargs.get('format', '    ')
         self.data_reference_index = kwargs.get('data_reference_index', 1)
         self.size = 16
 
     def to_bytes(self):
         """Returns sample entry as bytestream, ready to be sent to socket"""
-        ret = super().to_bytes() + bytes(6)
-        ret += self.data_reference_index.to_bytes(2, byteorder='big')
-        return ret
+        rc = [
+            super().to_bytes(),
+            b'\x00\x00\x00\x00\x00\x00',
+            self.data_reference_index.to_bytes(2, byteorder='big')
+        ]
+        return b''.join(rc)
 
 
 class VisualSampleEntry(SampleEntry):
     """The sample description table for video tracks"""
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+        self._coding_boxes = {}  # [avcC hvcC pasp fiel]
         file = kwargs.get("file", None)
-        if file is not None:
+        if file:
             self._read_some(file, 16)
             self.geometry = (int.from_bytes(self._read_some(file, 2), "big"),
                              int.from_bytes(self._read_some(file, 2), "big"))
@@ -64,7 +68,6 @@ class VisualSampleEntry(SampleEntry):
             self.color_depth = int.from_bytes(self._read_some(file, 2), "big")
             self._read_some(file, 2)
             left = self.size - (file.tell()-self.position)
-            self._coding_boxes = {}  # [avcC hvcC pasp fiel]
             while left > 0:
                 box = Atom(file=file, depth=self._depth + 1)
                 file.seek(box.position)
@@ -97,29 +100,34 @@ class VisualSampleEntry(SampleEntry):
 
     def init_from_args(self, **kwargs):
         super().init_from_args(**kwargs)
-        self.type = kwargs.get('format', 'vide')
+        self.type = kwargs.get('format', 'avc1')
         self.geometry = kwargs.get('width', 0), kwargs.get('height', 0)
-        self.resolution = kwargs.get('hresolution', 0x00480000), kwargs.get('vresolution', 0x00480000)
+        self.resolution = kwargs.get('h_resolution', 0x00480000), kwargs.get('v_resolution', 0x00480000)
         self.frame_count = kwargs.get('frame_count', 1)
-        self.compressor_name = kwargs.get('compressor', ' '*32)
+        self.compressor_name = kwargs.get('compressor', '')
         self.color_depth = kwargs.get('depth', 0x0018)
-        self.size = 16
+        self.size += 70
+
+    def add_coding(self, box):
+        self._coding_boxes[box.type] = box
+        self.size += box.size
 
     def to_bytes(self):
-        ret = super().to_bytes()
-        ret += bytearray(16)
-        ret += self.geometry[0].to_bytes(2, byteorder='big')
-        ret += self.geometry[1].to_bytes(2, byteorder='big')
-        ret += self.resolution[0].to_bytes(4, byteorder='big')
-        ret += self.resolution[1].to_bytes(4, byteorder='big')
-        ret += (0).to_bytes(4, byteorder='big')
-        ret += self.frame_count.to_bytes(2, byteorder="big")
-        ret += str.encode(self.compressor_name)
-        ret += self.color_depth.to_bytes(2, byteorder='big')
-        ret += (0xffff).to_bytes(2, byteorder='big')
-        for box in self._coding_boxes.values():
-            ret += box.to_bytes()
-        return ret
+        rc = [
+            super().to_bytes(),
+            b'\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00',
+            self.geometry[0].to_bytes(2, byteorder='big'),
+            self.geometry[1].to_bytes(2, byteorder='big'),
+            self.resolution[0].to_bytes(4, byteorder='big'),
+            self.resolution[1].to_bytes(4, byteorder='big'),
+            b'\x00\x00\x00\x00',
+            self.frame_count.to_bytes(2, byteorder="big")
+        ]
+        rc.append(str.encode(self.compressor_name)) if self.compressor_name else rc.extend([b'\x00'] * 32)
+        rc.extend([self.color_depth.to_bytes(2, byteorder='big'), b'\xff\xff'])
+        if self._coding_boxes:
+            rc.extend([b.to_bytes() for b in self._coding_boxes.values()])
+        return b''.join(rc)
 
 
 class AudioSampleEntry(SampleEntry):
@@ -169,15 +177,17 @@ class AudioSampleEntry(SampleEntry):
         return ''
 
     def to_bytes(self):
-        ret = super().to_bytes()
-        ret += bytearray(8)
-        ret += self.channel_count.to_bytes(2, byteorder='big')
-        ret += self.sample_size.to_bytes(2, byteorder='big')
-        ret += bytearray(4)
-        ret += self.sample_rate.to_bytes(4, byteorder='big')
-        if self.stream_descriptors is not None:
-            ret += self.stream_descriptors.to_bytes()
-        return ret
+        rc = [
+            super().to_bytes(),
+            b'\x00\x00\x00\x00\x00\x00\x00\x00',
+            self.channel_count.to_bytes(2, byteorder='big'),
+            self.sample_size.to_bytes(2, byteorder='big'),
+            b'\x00\x00\x00\x00',
+            self.sample_rate.to_bytes(4, byteorder='big')
+        ]
+        if self.stream_descriptors:
+            rc.append(self.stream_descriptors.to_bytes())
+        return b''.join(rc)
 
 
 class HintSampleEntry(SampleEntry):
@@ -195,7 +205,7 @@ class HintSampleEntry(SampleEntry):
         return ret
 
     def to_bytes(self):
-        return super().to_bytes() + self._hint_data
+        return b''.join([super().to_bytes(), self._hint_data])
 
 
 class StyleRecord:
@@ -285,12 +295,12 @@ class StyleRecord:
 
     def to_bytes(self):
         """Returns record as bytestream, ready to be sent to socket"""
-        ret = b''
+        rc = []
         for i, field in enumerate(self._fields):
-            ret += field.to_bytes(2 if i < 3 else 1, byteorder='big')
+            rc.append(field.to_bytes(2 if i < 3 else 1, byteorder='big'))
         for color in self.text_color:
-            ret += color.to_bytes(1, byteorder='big')
-        return ret
+            rc.append(color.to_bytes(1, byteorder='big'))
+        return b''.join(rc)
 
 
 class FontRecord:
@@ -315,9 +325,12 @@ class FontRecord:
 
     def to_bytes(self):
         """Returns record as bytestream, ready to be sent to socket"""
-        ret = self._identifier.to_bytes(2, byteorder='big')
-        ret += len(self._name).to_bytes(1, byteorder='big') + self._name.encode()
-        return ret
+        rc = [
+            self._identifier.to_bytes(2, byteorder='big'),
+            len(self._name).to_bytes(1, byteorder='big'),
+            self._name.encode()
+        ]
+        return b''.join(rc)
 
 
 class FontTableBox(Atom):
@@ -337,11 +350,13 @@ class FontTableBox(Atom):
         return '[' + ''.join(map(lambda x: '{' + str(x) + '}', self.entries)) + ']'
 
     def to_bytes(self):
-        ret = super().to_bytes()
-        ret += len(self.entries).to_bytes(2, byteorder='big')
-        for entry in self.entries:
-            ret += entry.to_bytes()
-        return ret
+        rc = [
+            super().to_bytes(),
+            len(self.entries).to_bytes(2, byteorder='big')
+        ]
+        if self.entries:
+            rc.extend([e.to_bytes() for e in self.entries])
+        return b''.join(rc)
 
 
 class BoxRecord:
@@ -406,16 +421,21 @@ class TextSampleEntry(SampleEntry):
         return ret
 
     def to_bytes(self):
-        ret = super().to_bytes()
-        ret += self.display_flags.to_bytes(4, byteorder='big')
-        ret += self.horizontal_justification.to_bytes(1, byteorder='big', signed=True)
-        ret += self.vertical_justification.to_bytes(1, byteorder='big', signed=True)
-        for color in self.background_color_rgba:
-            ret += color.to_bytes(1, byteorder='big')
-        ret += self.default_text_box.to_bytes()
-        ret += self.default_style.to_bytes()
-        ret += self.font_table.to_bytes()
-        return ret
+        rc = [
+            super().to_bytes(),
+            self.display_flags.to_bytes(4, byteorder='big'),
+            self.horizontal_justification.to_bytes(1, byteorder='big', signed=True),
+            self.vertical_justification.to_bytes(1, byteorder='big', signed=True),
+        ]
+        rc.extend([bytes(c) for c in self.background_color_rgba])
+        rc.extend(
+            [
+                self.default_text_box.to_bytes(),
+                self.default_style.to_bytes(),
+                self.font_table.to_bytes()
+            ]
+        )
+        return b''.join(rc)
 
 
 @full_box_derived
@@ -450,6 +470,10 @@ class Box(FullBox):
         self.type = atom_type()
         self.size = 16
 
+    def add_entry(self, entry):
+        self.entries.append(entry)
+        self.size += entry.size
+
     def _read_entry(self, file):
         """Reads entry of specific type"""
         if self.handler == 'vide':
@@ -468,8 +492,10 @@ class Box(FullBox):
         return SampleEntry()
 
     def to_bytes(self):
-        ret = super().to_bytes()
-        ret += len(self.entries).to_bytes(4, byteorder='big')
-        for entry in self.entries:
-            ret += entry.to_bytes()
-        return ret
+        rc = [
+            super().to_bytes(),
+            len(self.entries).to_bytes(4, byteorder='big')
+        ]
+        if self.entries:
+            rc.extend([e.to_bytes() for e in self.entries])
+        return b''.join(rc)

@@ -3,17 +3,19 @@ import os.path
 import shutil
 import tempfile
 from collections import defaultdict
+from typing import Optional
 from .rtmp.messages.data import VideoData, AudioData
-from .atom import atom, ftyp, mvhd, tkhd, hdlr, stsd, stsz
+from .atom import atom, avcc, dref, ftyp, hdlr, mvhd, mdhd, stsd, stsz, tkhd, vmhd
 
 
 class Mp4Sink:
     def __init__(self, root: str) -> None:
         self._root: str = root
         self._name: tuple = ()
-        self._folder: str = None
+        self._folder: str = ''
         self._metadata: dict = {}
         self._stsz: defaultdict = defaultdict(lambda: stsz.Box(version=0, flags=0))
+        self._avcc: Optional[avcc.Box] = None
 
     def __del__(self) -> None:
         try:
@@ -39,6 +41,10 @@ class Mp4Sink:
             f.write(ftyp_box.to_bytes())
 
     def on_video_config(self, payload: bytes) -> None:
+        self._avcc = avcc.Box(initial=VideoData.configuration.initial(),
+                              u_length=VideoData.configuration.length_size,
+                              sps=VideoData.configuration.sps,
+                              pps=VideoData.configuration.pps)
         d = os.path.join(self._folder, 'vide')
         try:
             os.mkdir(d)
@@ -46,17 +52,17 @@ class Mp4Sink:
             print(err)
         print(VideoData.configuration)
 
-    def on_videodata(self, payload: bytes) -> None:
+    def on_video_data(self, payload: bytes) -> None:
         self._stsz['vide'].append(len(payload))
         for i in payload[:10]:
             print(f'{i:x}', end=' ')
         print(f' of {len(payload)}')
 
     def on_audio_config(self, payload: bytes) -> None:
-        #print(AudioData.configuration)
+        # print(AudioData.configuration)
         pass
 
-    def on_audiodata(self, payload: bytes) -> None:
+    def on_audio_data(self, payload: bytes) -> None:
         self._stsz['soun'].append(len(payload))
         for i in payload[:5]:
             print(f'{i:x}', end=' ')
@@ -80,14 +86,26 @@ class Mp4Sink:
                                          )
                                 )
             track.add_inner_box(atom.Box(type='mdia'))
+            track.add_inner_box(mdhd.Box(duration=duration), 'mdia')
             track.add_inner_box(hdlr.Box(handler_type=tr,
                                          name='VideoHandler' if tr == 'vide' else 'SoundHandler'
                                          ),
                                 'mdia'
                                 )
             track.add_inner_box(atom.Box(type='minf'), 'mdia')
+            if tr == 'vide':
+                track.add_inner_box(vmhd.Box(flags=1), 'minf')
+            track.add_inner_box(atom.Box(type='dinf'), 'minf')
+            dref_ = dref.Box()
+            dref_.add_entry(dref.Entry(type='url ', flags=1))
+            track.add_inner_box(dref_, 'dinf')
             track.add_inner_box(atom.Box(type='stbl'), 'minf')
-            track.add_inner_box(stsd.Box(), 'stbl')
+            stsd_ = stsd.Box()
+            if tr == 'vide':
+                v: stsd.VisualSampleEntry = stsd.VisualSampleEntry(width=width, height=height)
+                v.add_coding(self._avcc)
+                stsd_.add_entry(v)
+            track.add_inner_box(stsd_, 'stbl')
             track.add_inner_box(self._stsz[tr], 'stbl')
             moov.add_inner_box(track)
         file.write(moov.to_bytes())

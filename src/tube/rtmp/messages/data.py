@@ -8,7 +8,7 @@ from __future__ import annotations
 import struct
 from collections import namedtuple
 from enum import IntEnum
-from typing import List, Union
+from typing import List, Optional
 from .amf0 import Type as Amf0
 
 
@@ -22,7 +22,7 @@ class Data:
     video_type_id = 9
 
     @staticmethod
-    def make(data: bytes) -> Union[Data, None]:
+    def make(data: bytes) -> Optional[Data]:
         type_: Amf0 = Amf0.make(data)
         if type_.value == '@setDataFrame':
             data_: bytes = data[len(type_):]
@@ -87,6 +87,14 @@ class AVCDecoderConfigurationRecord:
                f'level={hex(self.level_indication)} length_size={self.length_size} ' \
                f'sps=[{"".join("[" + " ".join(hex(int(x)) for x in ps) + "]" for ps in self.sps)}] ' \
                f'pps=[{"".join("[" + " ".join(hex(int(x)) for x in ps) + "]" for ps in self.pps)}]'
+
+    def initial(self) -> bytes:
+        return b''.join([
+            self.version.to_bytes(1, 'big'),
+            self.profile_indication.to_bytes(1, 'big'),
+            self.profile_compatibility.to_bytes(1, 'big'),
+            self.level_indication.to_bytes(1, 'big')
+            ])
 
     @staticmethod
     def _set_parameters(param_set: List[bytes], data: bytes) -> int:

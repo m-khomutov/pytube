@@ -46,7 +46,7 @@ class Box:
         self._depth = 0
         self.position = 0
         file = kwargs.get("file", None)
-        if file is not None:
+        if file:
             self._fromfile(file, kwargs.get("depth", None))
             self.init_from_file(file)
         else:

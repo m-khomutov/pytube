@@ -3,7 +3,6 @@
    can have different sizes. This table can be used to find the chunk
    that contains a sample, its position, and the associated sample description
 """
-from functools import reduce
 from .atom import FullBox, full_box_derived
 
 
@@ -48,10 +47,12 @@ class Entry:
 
     def to_bytes(self):
         """Returns data entry as bytestream, ready to be sent to socket"""
-        ret = self._first_chunk.to_bytes(4, byteorder='big')
-        ret += self._samples_per_chunk.to_bytes(4, byteorder='big')
-        ret += self._sample_description_index.to_bytes(4, byteorder='big')
-        return ret
+        return b''.join(
+            [
+                self._first_chunk.to_bytes(4, byteorder='big'),
+                self._samples_per_chunk.to_bytes(4, byteorder='big'),
+                self._sample_description_index.to_bytes(4, byteorder='big')
+            ])
 
 
 @full_box_derived
@@ -79,8 +80,7 @@ class Box(FullBox):
         self.size = 16
 
     def to_bytes(self):
-        ret = super().to_bytes() + \
-              len(self.entries).to_bytes(4, byteorder='big')
+        rc = [super().to_bytes(), len(self.entries).to_bytes(4, byteorder='big')]
         if self.entries:
-            ret += reduce(lambda a, b: a + b, map(lambda x: x.to_bytes, self.entries))
-        return ret
+            rc.extend([x.to_bytes() for x in self.entries])
+        return b''.join(rc)

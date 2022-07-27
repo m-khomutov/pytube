@@ -1,6 +1,6 @@
 """AMF encoded exchange commands"""
 from __future__ import annotations
-from typing import Union
+from typing import Optional
 from .amf0 import Type as Amf0
 from .amf0 import TypeMarker, Number, String, Object, Null
 from ..chunk import ChunkBasicHeader, ChunkMessageHeader
@@ -19,7 +19,7 @@ class Command:
     amf0_type_id = 20
 
     @staticmethod
-    def make(data: bytes, chunk_size: int) -> Union[Command, None]:
+    def make(data: bytes, chunk_size: int) -> Optional[Command]:
         type_: Amf0 = Amf0.make(data)
         return {
             'connect': Connect,

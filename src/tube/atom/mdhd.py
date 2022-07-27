@@ -1,6 +1,7 @@
 """The media header declares overall information that is media-independent,
    and relevant to characteristics of the media in a track.
 """
+import time
 from .atom import FullBox, full_box_derived
 
 
@@ -50,6 +51,16 @@ class Box(FullBox):
             chr((((lang[0] & 0x03) << 3) | (lang[1] >> 5)) + 0x60) + \
             chr((lang[1] & 0x1f) + 0x60)
         self._read_some(file, 2)
+
+    def init_from_args(self, **kwargs):
+        super().init_from_args(**kwargs)
+        self.type = atom_type()
+        self.creation_time = kwargs.get('creation_time', int(time.time()))
+        self.modification_time = kwargs.get('modification_time', int(time.time()))
+        self.timescale = kwargs.get('timescale', 0)
+        self.duration = kwargs.get('duration', 0)
+        self.language = kwargs.get('language', 'und')
+        self.size = 44 if self.version == 1 else 32
 
     def to_bytes(self):
         ret = super().to_bytes()

@@ -2,7 +2,7 @@
 import secrets
 from datetime import datetime
 from enum import IntEnum
-from typing import Union
+from typing import Optional
 from .chunk import CS0, CSn, Chunk, ChunkMessageHeader
 from .messages.amf0 import Number, String
 from .messages.command import Command, ResultCommand, Publish
@@ -104,7 +104,7 @@ class Connection:
                                           name='onBWDone').to_bytes()
 
     def _on_command(self, data: bytes, **kwargs) -> None:
-        command: Union[Command, None] = Command.make(data, self._chunk.size)
+        command: Optional[Command, None] = Command.make(data, self._chunk.size)
         if command:
             print(command)
             out_data = kwargs.get('out_data')
@@ -161,7 +161,7 @@ class Connection:
                           name='onStatus').to_bytes()
 
     def _on_metadata(self, data: bytes, **kwargs) -> None:
-        metadata: Union[Data, None] = Data.make(data)
+        metadata: Optional[Data, None] = Data.make(data)
         if metadata:
             self._mp4sink.on_metadata(metadata.object.value)
 
@@ -175,7 +175,7 @@ class Connection:
         if packet_type == PacketType.SequenceHeader:
             self._mp4sink.on_video_config(payload)
         else:
-            self._mp4sink.on_videodata(payload)
+            self._mp4sink.on_video_data(payload)
 
     def _on_audio_packet(self, data: bytes, **kwargs) -> None:
         AudioData(data, self._audio_callback)
@@ -184,4 +184,4 @@ class Connection:
         if packet_type == PacketType.SequenceHeader:
             self._mp4sink.on_audio_config(payload)
         else:
-            self._mp4sink.on_audiodata(payload)
+            self._mp4sink.on_audio_data(payload)

@@ -41,10 +41,11 @@ class Box(FullBox):
         self.size += 4
 
     def to_bytes(self):
-        ret = super().to_bytes()
-        ret += self.sample_size.to_bytes(4, byteorder='big')
-        ret += len(self.entries).to_bytes(4, byteorder='big')
+        rc = [
+            super().to_bytes(),
+            self.sample_size.to_bytes(4, byteorder='big'),
+            len(self.entries).to_bytes(4, byteorder='big')
+        ]
         if self.sample_size == 0:
-            for entry in self.entries:
-                ret += entry.to_bytes(4, byteorder='big')
-        return ret
+            rc.extend([e.to_bytes(4, byteorder='big') for e in self.entries])
+        return b''.join(rc)
