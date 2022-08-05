@@ -92,7 +92,7 @@ class Connection:
             Data.amf0_type_id: self._on_metadata,
             Data.video_type_id: self._on_video_packet,
             Data.audio_type_id: self._on_audio_packet,
-        }.get(header.message_type_id)(data, out_data=out_data)
+        }.get(header.message_type_id)(data, out_data=out_data, timestamp=header.timestamp)
 
     def _on_control(self, data: bytes, **kwargs) -> None:
         self._chunk.size = SetChunkSize().from_bytes(data).chunk_size
@@ -167,15 +167,15 @@ class Connection:
 
     def _on_video_packet(self, data: bytes, **kwargs) -> None:
         try:
-            VideoData(data, self._video_callback)
+            VideoData(data, kwargs.get('timestamp', 0), self._video_callback)
         except DataMessageException as ex:
             print(ex)
 
-    def _video_callback(self, packet_type: PacketType, payload: bytes) -> None:
+    def _video_callback(self, packet_type: PacketType, payload: bytes, timestamp: int = 0) -> None:
         if packet_type == PacketType.SequenceHeader:
             self._mp4sink.on_video_config(payload)
         else:
-            self._mp4sink.on_video_data(payload)
+            self._mp4sink.on_video_data(timestamp, payload)
 
     def _on_audio_packet(self, data: bytes, **kwargs) -> None:
         AudioData(data, self._audio_callback)

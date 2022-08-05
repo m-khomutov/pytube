@@ -15,10 +15,16 @@ class Entry:
     """Gives the index of the first chunk of a run of chunks
        with the same characteristics
     """
-    def __init__(self, file):
-        self._first_chunk = int.from_bytes(file.read(4), 'big')
-        self._samples_per_chunk = int.from_bytes(file.read(4), 'big')
-        self._sample_description_index = int.from_bytes(file.read(4), 'big')
+    def __init__(self, **kwargs):
+        if kwargs.get('file'):
+            file = kwargs.get('file')
+            self._first_chunk = int.from_bytes(file.read(4), 'big')
+            self._samples_per_chunk = int.from_bytes(file.read(4), 'big')
+            self._sample_description_index = int.from_bytes(file.read(4), 'big')
+        else:
+            self._first_chunk = kwargs.get('first_chunk', 1)
+            self._samples_per_chunk = kwargs.get('samples_per_chunk', 1)
+            self._sample_description_index = kwargs.get('sample_description_index', 1)
 
     def __str__(self):
         return f'{self._first_chunk}:{self._samples_per_chunk}:{self._sample_description_index}'
@@ -60,6 +66,7 @@ class Box(FullBox):
     """Sample-to-chunk, partial data-offset information"""
     def __init__(self, *args, **kwargs):
         self.entries = []
+        self._first_chunk = 1
         super().__init__(*args, **kwargs)
 
     def __repr__(self):
@@ -70,7 +77,7 @@ class Box(FullBox):
 
     def _read_entry(self, file):
         """Reads entry from file"""
-        return Entry(file)
+        return Entry(file=file)
 
     def init_from_file(self, file):
         self.entries = self._read_entries(file)
@@ -78,6 +85,12 @@ class Box(FullBox):
     def init_from_args(self, **kwargs):
         self.type = 'stsc'
         self.size = 16
+
+    def append(self, frame_size: int):
+        if not self.entries:
+            self.entries.append(Entry())
+            self.size += 12
+        self._first_chunk += 1
 
     def to_bytes(self):
         rc = [super().to_bytes(), len(self.entries).to_bytes(4, byteorder='big')]

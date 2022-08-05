@@ -1,4 +1,5 @@
 """Decoding time-to-sample"""
+from typing import Optional
 from .atom import FullBox, full_box_derived
 
 
@@ -25,7 +26,10 @@ class Entry:
 
     def to_bytes(self):
         """Returns sample the box entry as bytestream, ready to be sent to socket"""
-        return self.count.to_bytes(4, byteorder='big') + self.delta.to_bytes(4, byteorder='big')
+        return b''.join([
+            self.count.to_bytes(4, byteorder='big'),
+            self.delta.to_bytes(4, byteorder='big')
+        ])
 
 
 @full_box_derived
@@ -33,6 +37,7 @@ class Box(FullBox):
     """Decoding time-to-sample box"""
     def __init__(self, *args, **kwargs):
         self.entries = []
+        self._last_timestamp: Optional[int] = None
         super().__init__(*args, **kwargs)
 
     def __repr__(self):
@@ -45,13 +50,25 @@ class Box(FullBox):
         self.type = 'stts'
         self.size = 16
 
+    def append(self, timestamp: int):
+        if not self._last_timestamp:
+            self._last_timestamp = timestamp
+        elif timestamp != self._last_timestamp:
+            delta: int = timestamp - self._last_timestamp
+            self._last_timestamp = timestamp
+            if not self.entries or self.entries[-1].delta != delta:
+                self.entries.append(Entry(1, delta))
+                self.size += 8
+            else:
+                self.entries[-1].count += 1
+
     def _read_entry(self, file):
         """Get Entry from file"""
         return Entry(int.from_bytes(self._read_some(file, 4), "big"),
                      int.from_bytes(self._read_some(file, 4), "big"))
 
     def to_bytes(self):
-        ret = super().to_bytes() + len(self.entries).to_bytes(4, byteorder='big')
-        for entry in self.entries:
-            ret += entry.to_bytes()
-        return ret
+        rc = [super().to_bytes(), len(self.entries).to_bytes(4, byteorder='big')]
+        if self.entries:
+            rc.extend([e.to_bytes() for e in self.entries])
+        return b''.join(rc)

@@ -5,7 +5,7 @@ import tempfile
 from collections import defaultdict
 from typing import Optional
 from .rtmp.messages.data import VideoData, AudioData
-from .atom import atom, avcc, dref, ftyp, hdlr, mvhd, mdhd, stsd, stsz, tkhd, vmhd
+from .atom import atom, avcc, dref, ftyp, hdlr, mvhd, mdhd, stsc, stsd, stts, stsz, tkhd, vmhd
 
 
 class Mp4Sink:
@@ -15,6 +15,8 @@ class Mp4Sink:
         self._folder: str = ''
         self._metadata: dict = {}
         self._stsz: defaultdict = defaultdict(lambda: stsz.Box(version=0, flags=0))
+        self._stts: defaultdict = defaultdict(lambda: stts.Box())
+        self._stsc: defaultdict = defaultdict(lambda: stsc.Box())
         self._avcc: Optional[avcc.Box] = None
 
     def __del__(self) -> None:
@@ -52,11 +54,13 @@ class Mp4Sink:
             print(err)
         print(VideoData.configuration)
 
-    def on_video_data(self, payload: bytes) -> None:
+    def on_video_data(self, timestamp: int, payload: bytes) -> None:
+        self._stts['vide'].append(timestamp)
         self._stsz['vide'].append(len(payload))
+        self._stsc['vide'].append(len(payload))
         for i in payload[:10]:
             print(f'{i:x}', end=' ')
-        print(f' of {len(payload)}')
+        print(f' of {len(payload)} in {timestamp}')
 
     def on_audio_config(self, payload: bytes) -> None:
         # print(AudioData.configuration)
@@ -106,6 +110,8 @@ class Mp4Sink:
                 v.add_coding(self._avcc)
                 stsd_.add_entry(v)
             track.add_inner_box(stsd_, 'stbl')
+            track.add_inner_box(self._stts[tr], 'stbl')
+            track.add_inner_box(self._stsc[tr], 'stbl')
             track.add_inner_box(self._stsz[tr], 'stbl')
             moov.add_inner_box(track)
         file.write(moov.to_bytes())

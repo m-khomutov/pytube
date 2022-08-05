@@ -18,6 +18,9 @@ class BoxIterator:
             pass
         raise StopIteration
 
+    def __iter__(self):
+        return self
+
     @property
     def position(self):
         """Returns current position in box iteration"""
@@ -196,8 +199,8 @@ class FullBox(Box):
         self.size = 12
 
     def to_bytes(self):
-        ret = list()
-        ret.append(super().to_bytes())
-        ret.append(self.version.to_bytes(1, byteorder='big'))
-        ret.append(self.flags.to_bytes(3, byteorder='big'))
-        return b''.join(ret)
+        return b''.join([
+            super().to_bytes(),
+            self.version.to_bytes(1, byteorder='big'),
+            self.flags.to_bytes(3, byteorder='big')
+        ])

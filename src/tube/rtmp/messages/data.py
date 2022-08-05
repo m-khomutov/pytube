@@ -110,7 +110,7 @@ class AVCDecoderConfigurationRecord:
 class VideoData:
     configuration: AVCDecoderConfigurationRecord = None
 
-    def __init__(self, data: bytes, callback=lambda v, d: None) -> None:
+    def __init__(self, data: bytes, timestamp: int, callback=lambda v, d: None) -> None:
         if len(data) < 9:
             raise DataMessageException(f'message too short: {len(data)}')
         off: int = 0
@@ -125,7 +125,7 @@ class VideoData:
         elif self._avc_packet.type == PacketType.Payload:
             if not self.__class__.configuration:
                 raise DataMessageException('AVCDecoderConfigurationRecord has not been received')
-            self._on_nalu(data[off:], callback)
+            self._on_nalu(data[off:], timestamp, callback)
 
     @property
     def type(self) -> PacketType:
@@ -138,7 +138,7 @@ class VideoData:
         self.__class__.configuration = AVCDecoderConfigurationRecord(data)
         callback(self._avc_packet.type, data)
 
-    def _on_nalu(self, data: bytes, callback):
+    def _on_nalu(self, data: bytes, timestamp: int, callback):
         off: int = 0
         while off < len(data):
             sz: int = {
@@ -147,7 +147,7 @@ class VideoData:
                 4: struct.unpack('>I', data[off:off + 4])[0],
             }.get(self.__class__.configuration.length_size)
             off += self.__class__.configuration.length_size
-            callback(self._avc_packet.type, data[off:off + sz])
+            callback(self._avc_packet.type, data[off:off + sz], timestamp)
             off += sz
 
 
