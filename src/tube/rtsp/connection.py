@@ -114,7 +114,8 @@ class Connection:
         if not os.path.isfile(filename):
             data.outb = str.encode('RTSP/1.0 404 Not Found\r\n\r\n')
             return
-        if [k for k in headers if 'Accept: ' in k][0][8:] != 'application/sdp':
+        accept = [k for k in headers if 'Accept: ' in k]
+        if accept and accept[0][8:] != 'application/sdp':
             data.outb = str.encode('RTSP/1.0 405 Method Not Allowed\r\n') + \
                 self._sequence_number(headers) + \
                 str.encode('\r\n')

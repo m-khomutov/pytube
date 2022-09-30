@@ -114,7 +114,7 @@ def handler(params):
 
         def _stream_cdn(self):
             try:
-                with Cdn(self._root, self.path) as f:
+                with Cdn(self._root, self.path.split('?proto=cdn')[0]) as f:
                     self.send_response(200)
                     for frame, delta_ts in f:
                         self.wfile.write(frame)
