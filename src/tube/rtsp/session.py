@@ -154,13 +154,12 @@ class Session:
         """Returns content base URL"""
         return self._content_base
 
-    @property
-    def identification(self):
+    def identification(self, params: str = ''):
         """Returns session identification"""
         if not self._session_id:
             source = string.ascii_letters + string.digits
             self._session_id = ''.join(map(lambda x: random.choice(source), range(16)))
-        return str.encode('Session: ' + self._session_id + '\r\n')
+        return str.encode('Session: ' + self._session_id + params + '\r\n')
 
     @property
     def sdp(self):

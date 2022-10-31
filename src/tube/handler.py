@@ -125,6 +125,14 @@ def handler(params):
             except BrokenPipeError:
                 print('client finished connection')
 
+        def _confirm_control_action(self):
+            reply: str = '{\"success\":true}'
+            self.send_response(200)
+            self.send_header('Content-type', 'application/json;charset=UTF-8')
+            self.send_header('Content-length', str(len(reply)))
+            self.end_headers()
+            self.wfile.write(reply.encode())
+
         def _get_segment_maker(self, **kwargs):
             segment_maker = self.segment_makers.get(self.path)
             if segment_maker is None:
@@ -160,8 +168,10 @@ def handler(params):
                     print(e)
             elif self.path.endswith('.vtt'):
                 self._stream_file(os.path.join(self._root, self.path[1:]), 'text/vtt')
-            elif self.path.endswith('?proto=cdn'):
+            elif '?proto=cdn' in self.path:
                 self._stream_cdn()
+            elif 'control=' in self.path and 'action=' in self.path:
+                self._confirm_control_action()
             else:
                 extension = self.path[self.path.rfind('.'):]
                 if len(extension) > 1:

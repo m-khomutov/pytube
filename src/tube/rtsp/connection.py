@@ -137,7 +137,7 @@ class Connection:
         """Manages GET_PARAMETER RTSP directive"""
         data.outb = str.encode('RTSP/1.0 200 OK\r\n') + \
                     self._sequence_number(headers) + \
-                    self._session.identification + \
+                    self._session.identification() + \
                     self._datetime()
         if headers[-1] == 'position':
             data.outb += str.encode('Range: ' +
@@ -158,7 +158,7 @@ class Connection:
             data.outb = str.encode('RTSP/1.0 200 OK\r\n') + \
                 self._sequence_number(headers) + \
                 self._datetime() + \
-                self._session.identification + \
+                self._session.identification(';timeout=60') + \
                 str.encode(transport + '\r\n\r\n')
 
     def _on_play(self, headers, data):
@@ -170,7 +170,7 @@ class Connection:
                 str.encode(self._session.set_play_range(headers, scale)) + \
                 str.encode(self._session.set_scale(scale)) + \
                 self._datetime() + \
-                self._session.identification + \
+                self._session.identification() + \
                 str.encode('\r\n')
             self._playing = True
         else:
@@ -182,7 +182,7 @@ class Connection:
             data.outb = str.encode('RTSP/1.0 200 OK\r\n') + \
                 self._sequence_number(headers) + \
                 self._datetime() + \
-                self._session.identification + \
+                self._session.identification() + \
                 str.encode('\r\n')
             self._playing = False
 
@@ -200,7 +200,7 @@ class Connection:
             data.outb = str.encode('RTSP/1.0 200 OK\r\n') + \
                 self._sequence_number(headers) + \
                 self._datetime() + \
-                self._session.identification + \
+                self._session.identification() + \
                 str.encode('\r\n')
             self._playing = False
 
