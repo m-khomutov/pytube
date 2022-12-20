@@ -3,6 +3,7 @@ import random
 import string
 import logging
 from datetime import datetime
+from typing import List
 from ..reader import Reader
 from ..rtp.streamer import AvcStreamer, HevcStreamer, AudioStreamer
 from ..atom.hvcc import NetworkUnitType
@@ -107,21 +108,21 @@ class Session:
         session_id = [k for k in headers if 'Session: ' in k][0][9:]
         return session_id == self._session_id
 
-    def get_next_frame(self):
+    def get_next_frame(self) -> bytes:
         """If time has come writes next media frame"""
-        ret = b''
+        rc: List[bytes] = []
         for key in self._streamers:
             if self._streamers[key].trick_play.forward:
-                ret += self._streamers[key].next_frame(self._reader,
-                                                       key,
-                                                       self._play_range.npt_range[1],
-                                                       self._verbal)
+                rc.append(self._streamers[key].next_frame(self._reader,
+                                                          key,
+                                                          self._play_range.npt_range[1],
+                                                          self._verbal))
             else:
-                ret += self._streamers[key].prev_frame(self._reader,
-                                                       key,
-                                                       self._play_range.npt_range[0],
-                                                       self._verbal)
-        return ret
+                rc.append(self._streamers[key].prev_frame(self._reader,
+                                                          key,
+                                                          self._play_range.npt_range[0],
+                                                          self._verbal))
+        return b''.join(rc)
 
     def set_play_range(self, headers, scale):
         """Returns media duration in Clock or NPT format"""
@@ -149,6 +150,10 @@ class Session:
         track_id = self._play_range.track_id
         return self._play_range.clock_position(self._streamers[track_id].position)
 
+    def get_position(self):
+        track_id = self._play_range.track_id
+        return self._streamers[track_id].position
+
     @property
     def content_base(self):
         """Returns content base URL"""
@@ -159,7 +164,7 @@ class Session:
         if not self._session_id:
             source = string.ascii_letters + string.digits
             self._session_id = ''.join(map(lambda x: random.choice(source), range(16)))
-        return str.encode('Session: ' + self._session_id + params + '\r\n')
+        return ''.join(['Session: ', self._session_id, params, '\r\n'])
 
     @property
     def sdp(self):
@@ -172,17 +177,17 @@ class Session:
         return self._reader.media_duration_sec
 
     def _make_video_sdp(self, track_id, stsd_boxes):
-        ret = ''
+        rc: List[str] = []
         if stsd_boxes:
-            ret += 'm=video 0 RTP/AVP 96\r\n'
+            rc.append('m=video 0 RTP/AVP 96\r\n')
             avc_box = stsd_boxes[0]['avcC']
             if avc_box is not None:
-                ret += self._make_avc_sdp(track_id, avc_box)
+                rc.append(self._make_avc_sdp(track_id, avc_box))
             else:
                 hevc_box = stsd_boxes[0]['hvcC']
                 if hevc_box is not None:
-                    ret += self._make_hevc_sdp(track_id, hevc_box)
-        return ret
+                    rc.append(self._make_hevc_sdp(track_id, hevc_box))
+        return ''.join(rc)
 
     def _make_avc_sdp(self, track_id, avc_box):
         self._streamers[track_id] = AvcStreamer(96, (avc_box.sps, avc_box.pps))
@@ -193,32 +198,33 @@ class Session:
               ';profile-level-id=' + \
               avc_box.profile_level_id + '\r\n' + \
               'a=range:' + self._play_range.clock
-        return ret + 'a=control:' + str(track_id) + '\r\n'
+        return ''.join([ret, 'a=control:', str(track_id), '\r\n'])
 
     def _make_hevc_sdp(self, track_id, hevc_box):
         self._streamers[track_id] = HevcStreamer(96)
         self._play_range = PlayRange(track_id, self._reader.media_duration_sec)
-        ret = 'a=rtpmap:96 H265/90000\r\na=fmtp:96 '
+        rc: List[str] = ['a=rtpmap:96 H265/90000\r\na=fmtp:96 ']
         for sprop_set in hevc_box.config_sets:
             if sprop_set.type.nal_unit_type == NetworkUnitType.VPS_NUT:
-                ret += 'sprop-vps=' + sprop_set.base64_set + ';'
+                rc.append('sprop-vps=' + sprop_set.base64_set + ';')
             elif sprop_set.type.nal_unit_type == NetworkUnitType.SPS_NUT.value:
-                ret += 'sprop-sps=' + sprop_set.base64_set + ';'
+                rc.append('sprop-sps=' + sprop_set.base64_set + ';')
             elif sprop_set.type.nal_unit_type == NetworkUnitType.PPS_NUT.value:
-                ret += 'sprop-pps=' + sprop_set.base64_set + ';'
-        return ret.rstrip(';') + '\r\na=control:' + str(track_id) + '\r\n'
+                rc.append('sprop-pps=' + sprop_set.base64_set + ';')
+            rc[-1].rstrip(';')
+            rc.extend(['\r\na=control:', str(track_id), '\r\n'])
+        return ''.join(rc)
 
     def _make_audio_sdp(self, track_id, stsd_boxes):
-        ret = ''
         if stsd_boxes:
-            ret += 'm=audio 0 RTP/AVP 97\r\n' + \
+            self._streamers[track_id] = AudioStreamer(97)
+            return 'm=audio 0 RTP/AVP 97\r\n' + \
                    'a=rtpmap:97 ' + stsd_boxes[0].rtpmap + '\r\n' + \
                    'a=fmtp:97 profile-level-id=1;' \
                    'mode=AAC-hbr;sizelength=13;indexlength=3;indexdeltalength=3;' \
                    'config=' + stsd_boxes[0].config + '\r\n' + \
                    'a=control:' + str(track_id) + '\r\n'
-            self._streamers[track_id] = AudioStreamer(97)
-        return ret
+        return ''
 
     def _set_play_range_as_npt(self, values):
         """Returns media duration in NPT format"""
