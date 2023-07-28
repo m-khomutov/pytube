@@ -137,7 +137,7 @@ class Connection:
         if headers[-1] == 'position':
             range_: str = 'Range: ' + self._session.position_absolute_time() + '\r\n'
             rc.append('Content-Length: ' + str(len(range_)) + '\r\n\r\n')
-            rc.append(range_.encode())
+            rc.append(range_)
         else:
             rc.append('\r\n\r\n')
         data.outb = ''.join(rc).encode()

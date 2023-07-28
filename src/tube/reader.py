@@ -238,6 +238,7 @@ class Reader:
     def __init__(self, filename):
         self.media_duration_sec = 0.
         self.boxes = []
+        self.video_configuration_box = None
         self.samples_info = {}
         self.media_header = {}
         self.video_stream_type = stsd.VideoCodecType.UNKNOWN
@@ -380,8 +381,8 @@ class Reader:
         if box.type == stsd.atom_type():
             if handler == 'vide':
                 self.video_stream_type = box.video_stream_type
-                self.samples_info[track_id].unit_size_bytes = \
-                    box.video_configuration_box().unit_length
+                self.video_configuration_box = box.video_configuration_box()
+                self.samples_info[track_id].unit_size_bytes = box.video_configuration_box().unit_length
         return track_id, handler
 
     def _on_stsz(self, box, track_id, handler):

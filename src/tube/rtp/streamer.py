@@ -3,6 +3,7 @@ import abc
 import time
 import random
 import logging
+from ..bitreader import Reader as BitReader
 
 
 class AUHeaderSimpleSection:
@@ -218,7 +219,7 @@ class Streamer:
         self._position = value
 
     @abc.abstractmethod
-    def _frame_to_bytes(self, sample, composition_time, verbal) -> bytes:
+    def _frame_to_bytes(self, reader, sample, composition_time, verbal) -> bytes:
         """Returns media sample as bytestream, ready to be sent to socket"""
         return b''
 
@@ -247,9 +248,7 @@ class Streamer:
             if self.trick_play.active and not self.trick_play.forward:
                 if not reader.is_keyframe(sample):
                     return ret
-            ret = self._frame_to_bytes(sample,
-                                       composition_time >> (self.trick_play.scale - 1),
-                                       verbal)
+            ret = self._frame_to_bytes(reader, sample, composition_time >> (self.trick_play.scale - 1), verbal)
         return ret
 
 
@@ -258,13 +257,45 @@ class AvcStreamer(Streamer):
     def __init__(self, payload_type, param_sets=()):
         super().__init__(payload_type, TrickPlay(True))
         self.param_sets = param_sets
+        self.parameters_sent = []
 
-    def _frame_to_bytes(self, sample, composition_time, verbal):
+    @staticmethod
+    def _pps_id(chunk: bytes) -> int:
+        br: BitReader = BitReader(chunk[1:])
+        br.golomb_u()  # first_mb_in_slice
+        br.golomb_u()  # slice_type
+        return br.golomb_u()
+
+    @staticmethod
+    def _sps_id(pps: bytes) -> int:
+        br: BitReader = BitReader(pps[1:])
+        br.golomb_u()  # pic_parameter_set_id
+        return br.golomb_u()
+
+    def _frame_to_bytes(self, reader, sample, composition_time, verbal):
         """Returns video sample as bytestream, ready to be sent to socket"""
-        ret = b''
+        ret: list = []
         for chunk in sample:
+            if chunk[0] & 0x1f == 5:
+                self.parameters_sent = []
+            ret.extend(self._parameters_to_bytes(reader, chunk, composition_time, verbal))
             for marker, data_unit in AvcFragmentMaker(chunk):
-                ret += self.to_bytes(marker, data_unit, composition_time, verbal)
+                ret.append(self.to_bytes(marker, data_unit, composition_time, verbal))
+        return b''.join(ret)
+
+    def _parameters_to_bytes(self, reader, chunk, composition_time, verbal):
+        ret: list = []
+        if reader.video_configuration_box:
+            slice_pps_id: int = self._pps_id(chunk)
+            if slice_pps_id in self.parameters_sent:
+                return ret
+            pps: bytes = reader.video_configuration_box.pps.get(slice_pps_id)
+            if pps:
+                self.parameters_sent.append(slice_pps_id)
+                sps: bytes = reader.video_configuration_box.sps.get(self._sps_id(pps))
+                if sps:
+                    ret.append(self.to_bytes(1, sps, composition_time, verbal))
+                ret.append(self.to_bytes(1, pps, composition_time, verbal))
         return ret
 
 
@@ -274,7 +305,7 @@ class HevcStreamer(Streamer):
         super().__init__(payload_type, TrickPlay(True))
         self.param_sets = param_sets
 
-    def _frame_to_bytes(self, sample, composition_time, verbal):
+    def _frame_to_bytes(self, reader, sample, composition_time, verbal):
         """Returns video sample as bytestream, ready to be sent to socket"""
         ret = b''
         for chunk in sample:
@@ -285,7 +316,7 @@ class HevcStreamer(Streamer):
 
 class AudioStreamer(Streamer):
     """Streams audio data in RTP interleaved protocol"""
-    def _frame_to_bytes(self, sample, composition_time, verbal):
+    def _frame_to_bytes(self, reader, sample, composition_time, verbal):
         """Returns audio sample as bytestream, ready to be sent to socket"""
         ret = b''
         for chunk in sample:

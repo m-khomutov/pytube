@@ -155,7 +155,7 @@ class Box:
         self.size = int.from_bytes(self._read_some(file, 4), "big")
         self.type = self._read_some(file, 4).decode("utf-8")
         if self.size == 1:
-            int.from_bytes(self._read_some(file, 8), "big")
+            self.size = int.from_bytes(self._read_some(file, 8), "big")
         if self.type == 'uuid':
             self._user_type = self._read_some(file, 16)
         self._depth = depth
