@@ -2,6 +2,7 @@
 import getopt
 import logging
 import multiprocessing
+import  platform
 import os
 import ssl
 import sys
@@ -21,10 +22,8 @@ class HttpsService(multiprocessing.Process):
         super().__init__()
         logging.info(f'SSL with {key_folder + "/key.pem"} and {key_folder + "/cert.pem"} is used')
         self.https_server = server_class(('', port), handler(params))
-        self.https_server.socket = ssl.wrap_socket(self.https_server.socket,
-                                                   keyfile=key_folder + "/key.pem",
-                                                   certfile=key_folder + '/cert.pem',
-                                                   server_side=True)
+        ssl_context=ssl.create_default_context(cafile=key_folder + "/cert.pem", capath=key_folder)
+        self.https_server.socket = ssl_context.wrap_socket(self.https_server.socket, server_hostname=platform.node())
 
     def run(self) -> None:
         """Starts service"""

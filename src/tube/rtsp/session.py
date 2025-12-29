@@ -101,6 +101,8 @@ class Session:
     def valid_request(self, headers):
         """Verifies content and session identity"""
         content = headers[0].split()[1]
+        if self._content_base[-1] == '/' and content[-1] != '/':
+            content += '/'
         return content == self._content_base and self.valid_session(headers)
 
     def valid_session(self, headers):
@@ -110,19 +112,7 @@ class Session:
 
     def get_next_frame(self) -> bytes:
         """If time has come writes next media frame"""
-        rc: List[bytes] = []
-        for key in self._streamers:
-            if self._streamers[key].trick_play.forward:
-                rc.append(self._streamers[key].next_frame(self._reader,
-                                                          key,
-                                                          self._play_range.npt_range[1],
-                                                          self._verbal))
-            else:
-                rc.append(self._streamers[key].prev_frame(self._reader,
-                                                          key,
-                                                          self._play_range.npt_range[0],
-                                                          self._verbal))
-        return b''.join(rc)
+        return self._get_frame()
 
     def set_play_range(self, headers, scale):
         """Returns media duration in Clock or NPT format"""
@@ -245,3 +235,18 @@ class Session:
             self._reader.move_back(start_ts - self._play_range.npt_range[fwd])
         for key in self._streamers:
             self._streamers[key].position = self._play_range.npt_range[fwd]
+
+    def _get_frame(self) -> bytes:
+        rc: List[bytes] = []
+        for key in self._streamers:
+            if self._streamers[key].trick_play.forward:
+                rc.append(self._streamers[key].next_frame(self._reader,
+                                                          key,
+                                                          self._play_range.npt_range[1],
+                                                          self._verbal))
+            else:
+                rc.append(self._streamers[key].prev_frame(self._reader,
+                                                          key,
+                                                          self._play_range.npt_range[0],
+                                                          self._verbal))
+        return b''.join(rc)
