@@ -19,12 +19,19 @@ class PlayRange:
         self.npt_range = [0., duration]
 
     @property
-    def npt(self):
+    def npt_sec(self):
         """Returns play range as npt"""
         return 'npt={:.03f}-{:.03f}\r\n'.format(self.npt_range[0], self.npt_range[1])
 
-    @npt.setter
-    def npt(self, value):
+    def npt_hhmmss(self):
+        start = self._start_clock + self.npt_range[0]
+        end = self._start_clock + self.npt_range[1]
+        return 'npt=' + \
+            datetime.fromtimestamp(start).strftime('%H:%M:%S-') + \
+            datetime.fromtimestamp(end).strftime('%H:%M:%S') + '\r\n'
+
+    @npt_sec.setter
+    def npt_sec(self, value):
         """Sets play range as npt"""
         start, end = value
         self.npt_range = [float(start) if start else 0.,
@@ -129,7 +136,7 @@ class Session:
 
     def set_scale(self, scale):
         """Sets playing media scale. Returns scale as Header"""
-        if scale != 0:
+        if int(scale) != 1:
             for key in self._streamers:
                 self._streamers[key].trick_play.scale = scale
             return 'Scale: ' + str(scale) + '\r\n'
@@ -188,6 +195,7 @@ class Session:
               ';profile-level-id=' + \
               avc_box.profile_level_id + '\r\n' + \
               'a=range:' + self._play_range.clock
+        #'a=range:' + self._play_range.npt_sec
         return ''.join([ret, 'a=control:', str(track_id), '\r\n'])
 
     def _make_hevc_sdp(self, track_id, hevc_box):

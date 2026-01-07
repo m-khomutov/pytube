@@ -1,6 +1,7 @@
 """RTSP protocol network connection"""
 import os
-from datetime import datetime
+from datetime import datetime, timedelta
+from time import time
 from typing import List
 from .session import Session as RtspSession
 from ..authentication import AuthenticationContainer, Authentication, AuthenticationException
@@ -16,16 +17,18 @@ class Connection:
     def _header(headers, header):
         return [k for k in headers if header + ': ' in k]
 
-    @staticmethod
-    def _sequence_number(headers):
-        return ''.join([Connection._header(headers, 'CSeq')[0], '\r\n'])
+    def _sequence_number(self, headers):
+        number: str = Connection._header(headers, 'CSeq')[0]
+        self._last_sequence_number = int(number.split(': ')[1])
+        return ''.join([number, '\r\n'])
 
     @staticmethod
     def _scale(headers):
         ret = Connection._header(headers, 'Scale')
-        return ret[0] if ret else 'Scale: 0'
+        return ret[0] if ret else 'Scale: 1.0'
 
     def __init__(self, address, params):
+        self._last_sequence_number: int = 0
         self._session = None
         self._playing = False
         self._root = params.get("root", ".")
@@ -37,6 +40,8 @@ class Connection:
             self._auth = AuthenticationContainer(params.get('basic'), params.get('digest'))
         except ValueError:
             self._auth = None
+        self._start_time = time()
+        self._redirected = False
 
     def on_read_event(self, key, data):
         """Manager read socket event"""
@@ -56,6 +61,7 @@ class Connection:
         if self._session and self._playing:
             try:
                 key.data.outb = self._session.get_next_frame()
+                #self._write_with_redirect(key)
             except:  # noqa # pylint: disable=bare-except
                 self._playing = False
 
@@ -121,6 +127,7 @@ class Connection:
                              self._datetime(),
                              'Content-Base: ', self._session.content_base + '\r\n',
                              'Content-Type: application/sdp\r\n',
+                             'User-Agent: Ivideon RTSP server\r\n',
                              'Content-Length: ', str(len(sdp)), '\r\n\r\n',
                              sdp]).encode()
 
@@ -164,11 +171,11 @@ class Connection:
     def _on_play(self, headers, data):
         """Manager PLAY RTSP directive"""
         if self._session.valid_request(headers):
-            scale = int(Connection._scale(headers)[7:])
+            scale = float(Connection._scale(headers)[7:])
             data.outb = ''.join(['RTSP/1.0 200 OK\r\n',
                                  self._sequence_number(headers),
-                                 self._session.set_play_range(headers, scale),
-                                 self._session.set_scale(scale),
+                                 #self._session.set_play_range(headers, scale),
+                                 #self._session.set_scale(scale),
                                  self._datetime(),
                                  self._session.identification(),
                                  '\r\n']).encode()
@@ -217,3 +224,30 @@ class Connection:
                         'c=IN IP4 0.0.0.0\r\n',
                         't=0 0\r\n',
                         self._session.sdp])
+
+    def _write_with_redirect(self, key):
+        if self._redirected:
+            self._start_time = time()
+        if time() - self._start_time < 10:
+            key.data.outb = self._session.get_next_frame()
+        else:
+            key.data.outb = self._prepare_redirect()
+            print(key.data.outb.decode('utf-8'))
+            self._redirected = True
+
+    def _prepare_redirect(self):
+        self._last_sequence_number += 1
+        new_url = self._session.content_base;
+        if new_url.endswith('/'):
+            new_url = new_url[:-1]
+        return ''.join(['REDIRECT ',
+                        self._session.content_base,
+                        ' RTSP/1.0\r\n',
+                        f'CSeq: {self._last_sequence_number}\r\n',
+                        'Range: clock=',
+                        (datetime.utcnow() + timedelta(seconds=15)).strftime("%Y%m%dT%H%M%SZ-"),
+                        '\r\n'
+                        'Location: ',
+                        new_url,
+                        '\r\n\r\n']
+                       ).encode()
