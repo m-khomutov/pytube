@@ -1,17 +1,18 @@
 """RTSP protocol network connection"""
 import os
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, UTC
 from time import time
 from typing import List
 from .session import Session as RtspSession
-from ..authentication import AuthenticationContainer, Authentication, AuthenticationException
+from ..rtp.rtcp import Request as RtcpRequest
+from ..authentication import AuthenticationContainer, AuthenticationException
 
 
 class Connection:
     """Manages RTSP protocol network connection activity"""
     @staticmethod
     def _datetime():
-        return ''.join(['Date: ', datetime.utcnow().strftime("%a, %d %b %Y %H:%M:%S"), ' GMT\r\n'])
+        return ''.join(['Date: ', datetime.now(UTC).strftime("%a, %d %b %Y %H:%M:%S"), ' GMT\r\n'])
 
     @staticmethod
     def _header(headers, header):
@@ -62,11 +63,15 @@ class Connection:
             try:
                 key.data.outb = self._session.get_next_frame()
                 #self._write_with_redirect(key)
-            except:  # noqa # pylint: disable=bare-except
+            except Exception:  # noqa # pylint: disable=bare-except
                 self._playing = False
 
     def _on_rtsp_directive(self, data):
         """Manages RTSP directive"""
+        if data.inb[0] == 0x24:
+            rtcp_request: RtcpRequest = RtcpRequest(data.inb)
+            data.outb = rtcp_request.reply()
+            return
         headers = []
         try:
             directive = data.inb.decode('utf-8')
@@ -97,10 +102,18 @@ class Connection:
                     self._on_redirect(headers, data)
                 elif headers[0][:9] == "TEARDOWN ":
                     self._on_teardown(headers, data)
+                print(data.outb.decode('utf-8'))
         except AuthenticationException as exception:
             data.outb = ''.join([f'{exception}', self._sequence_number(headers), '\r\n']).encode()
-        except:  # noqa # pylint: disable=bare-except
+            print(data.outb.decode('utf-8'))
+        except UnicodeDecodeError as err:
+            print(f'unicode error {err} in request: ')
+            for x in data.inb:
+                print(f'{hex(x)}', end=' ')
+            print('')
+        except Exception:  # noqa # pylint: disable=bare-except
             data.outb = ''.join(['RTSP/1.0 400 Bad Request\r\n', self._sequence_number(headers), '\r\n']).encode()
+            print(data.outb.decode('utf-8'))
 
     def _on_options(self, headers, data):
         """Manager OPTIONS RTSP directive"""
@@ -174,8 +187,8 @@ class Connection:
             scale = float(Connection._scale(headers)[7:])
             data.outb = ''.join(['RTSP/1.0 200 OK\r\n',
                                  self._sequence_number(headers),
-                                 #self._session.set_play_range(headers, scale),
-                                 #self._session.set_scale(scale),
+                                 self._session.set_play_range(headers, scale),
+                                 self._session.set_scale(scale),
                                  self._datetime(),
                                  self._session.identification(),
                                  '\r\n']).encode()
@@ -237,7 +250,7 @@ class Connection:
 
     def _prepare_redirect(self):
         self._last_sequence_number += 1
-        new_url = self._session.content_base;
+        new_url = self._session.content_base
         if new_url.endswith('/'):
             new_url = new_url[:-1]
         return ''.join(['REDIRECT ',
@@ -245,7 +258,7 @@ class Connection:
                         ' RTSP/1.0\r\n',
                         f'CSeq: {self._last_sequence_number}\r\n',
                         'Range: clock=',
-                        (datetime.utcnow() + timedelta(seconds=15)).strftime("%Y%m%dT%H%M%SZ-"),
+                        (datetime.now(UTC) + timedelta(seconds=15)).strftime("%Y%m%dT%H%M%SZ-"),
                         '\r\n'
                         'Location: ',
                         new_url,

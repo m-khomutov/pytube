@@ -4,6 +4,7 @@ import selectors
 import types
 import multiprocessing
 import time
+import traceback
 import logging
 from .connection import Connection
 
@@ -46,7 +47,8 @@ class Service(multiprocessing.Process):
                         try:
                             self._on_event(key, mask)
                         except Exception as e:  # noqa # pylint: disable=bare-except
-                            print(f'Exception: {e}')
+                            print(f'[TCP SERVICE] Exception on event: {e}')
+                            traceback.print_exc()
                             selector.unregister(key.fileobj)
                             key.fileobj.close()
                             del self._connections[key.data.addr]

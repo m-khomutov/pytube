@@ -4,6 +4,7 @@ import time
 import random
 import logging
 from ..bitreader import Reader as BitReader
+from .sei import Sei
 
 
 class AUHeaderSimpleSection:
@@ -188,8 +189,7 @@ class Streamer:
         """Returns chunk as bytestream, ready to be sent to socket"""
         ret = self._rtp_header.to_bytes(marker,
                                         composition_time,
-                                        len(chunk)) + \
-            chunk
+                                        len(chunk)) + chunk
         if verbal:
             print(' '.join(map(lambda x, p=ret: '{:02x}'.format(p[x]), range(19))) +
                   ' of ' + str(len(ret)))
@@ -281,6 +281,7 @@ class AvcStreamer(Streamer):
             ret.extend(self._parameters_to_bytes(reader, chunk, composition_time, verbal))
             for marker, data_unit in AvcFragmentMaker(chunk):
                 ret.append(self.to_bytes(marker, data_unit, composition_time, verbal))
+        #ret.append(self.to_bytes(1, bytes(Sei()), composition_time, verbal))
         return b''.join(ret)
 
     def _parameters_to_bytes(self, reader, chunk, composition_time, verbal):

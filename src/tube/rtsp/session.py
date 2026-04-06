@@ -127,10 +127,10 @@ class Session:
         play_range = [x for x in headers if 'Range: ' in x]
         if play_range:
             values = play_range[0].split('=')
-            if values[0][-3:] == 'npt':
-                ret = self._set_play_range_as_npt(values[1])
-            elif values[0][-5:] == 'clock':
-                ret = self._set_play_range_as_clock(values[1])
+            if 'npt' in values[0]:
+                ret = self._set_play_range_as_npt(values[1]) + '\r\n'
+            elif 'clock' in values[0]:
+                ret = self._set_play_range_as_clock(values[1]) + '\r\n'
             self._set_position(scale)
         return ret
 
@@ -227,7 +227,7 @@ class Session:
     def _set_play_range_as_npt(self, values):
         """Returns media duration in NPT format"""
         self._play_range.npt = values.split('-')
-        return 'Range: ' + self._play_range.npt
+        return 'Range: npt=' + values
 
     def _set_play_range_as_clock(self, values):
         """Returns media duration in Clock format"""
