@@ -51,6 +51,7 @@ class Service:
               "-b(--basic) user:password@realm (use Basic Authorization)\n\t"
               "-d(--digest) user:password@realm (use Digest Authorization)\n\t"
               "-k(--keys) directory with key.pem and cert.pem files (req. for https)\n\t"
+              "-u(--utc) send UTC in sei\n\t"
               "-v(--verb) be verbose\n\t"
               "-h(--help) this help")
 
@@ -86,7 +87,7 @@ def start():
     argv = sys.argv[1:]
     try:
         opts, args = getopt.getopt(argv,
-                                   "hp:r:s:b:d:ck:v",
+                                   "hp:r:s:b:d:ck:uv",
                                    ["help",
                                     "ports=",
                                     "root=",
@@ -95,6 +96,7 @@ def start():
                                     "digest=",
                                     "cache",
                                     "keys=",
+                                    "utc"
                                     "verb"])
         if args:
             Service.print_options()
@@ -126,6 +128,8 @@ def start():
                 params['cache'] = True
             elif opt in ('-k', '-keys'):
                 params['keys'] = arg
+            elif opt in ('-u', '-utc'):
+                params['utc'] = True
             elif opt in ('-v', '--verb'):
                 params['verb'] = True
     except ValueError as error:

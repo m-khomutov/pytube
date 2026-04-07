@@ -34,6 +34,7 @@ class Connection:
         self._playing = False
         self._root = params.get("root", ".")
         self._verbal = params.get("verb", False)
+        self._utc_in_sei = params.get("utc", False)
         self._address = address
         print(f'RTSP connect from {self._address}')
         self._auth = None
@@ -230,7 +231,7 @@ class Connection:
                              '\r\n']).encode()
 
     def _prepare_sdp(self, content_base, filename):
-        self._session = RtspSession(content_base, filename, self._verbal)
+        self._session = RtspSession(content_base, filename, self._verbal, self._utc_in_sei)
         return ''.join(['v=0\r\n',
                         'o=- 0 0 IN IP4 ', self._address[0], '\r\n',
                         's=No Title\r\n',

@@ -77,7 +77,7 @@ class PlayRange:
 
 class Session:
     """RTSP Session parameters"""
-    def __init__(self, content_base, filename, verbal):
+    def __init__(self, content_base, filename, verbal, add_sei):
         self._session_id = ''
         self._streamers = {}
         self._sdp = ''
@@ -85,6 +85,7 @@ class Session:
         self._content_base = content_base if content_base.endswith('/') else content_base + '/'
         self._reader = Reader(filename)
         self._verbal = verbal
+        self._add_sei = add_sei
         if self._verbal:
             logging.info(self._reader)
         for box in self._reader.find_box('trak'):
@@ -130,7 +131,7 @@ class Session:
             if 'npt' in values[0]:
                 ret = self._set_play_range_as_npt(values[1]) + '\r\n'
             elif 'clock' in values[0]:
-                ret = self._set_play_range_as_clock(values[1]) + '\r\n'
+                ret = self._set_play_range_as_clock(values[1])
             self._set_position(scale)
         return ret
 
@@ -249,12 +250,14 @@ class Session:
         for key in self._streamers:
             if self._streamers[key].trick_play.forward:
                 rc.append(self._streamers[key].next_frame(self._reader,
-                                                          key,
                                                           self._play_range.npt_range[1],
-                                                          self._verbal))
+                                                          key=key,
+                                                          verbal=self._verbal,
+                                                          sei=self._add_sei))
             else:
                 rc.append(self._streamers[key].prev_frame(self._reader,
-                                                          key,
                                                           self._play_range.npt_range[0],
-                                                          self._verbal))
+                                                          key=key,
+                                                          verbal=self._verbal,
+                                                          sei=self._add_sei))
         return b''.join(rc)

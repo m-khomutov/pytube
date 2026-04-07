@@ -16,6 +16,7 @@
 * -b(--basic) user:password@realm (use Basic Authorization)
 * -d(--digest) user:password@realm (use Digest Authorization)
 * -k(--keys) directory with key.pem and cert.pem files (req. for https)
+* -u(--utc) send UTC in sei
 * -v(--verb) be verbose (show structure of required mp4 file)
 * -h(--help) this help
 

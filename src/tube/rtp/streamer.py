@@ -173,17 +173,17 @@ class Streamer:
         self._payload_type = payload_type
         self.trick_play = trick_play
 
-    def prev_frame(self, reader, track_id, start_time, verbal):
+    def prev_frame(self, reader, start_time, **kwargs):
         """Reads and returns previous frame from mp4 file"""
         if self._rtp_header is None or self._position <= start_time:
             return b''
-        return self._frame(reader, track_id, verbal)
+        return self._frame(reader, **kwargs)
 
-    def next_frame(self, reader, track_id, end_time, verbal):
+    def next_frame(self, reader, end_time, **kwargs):
         """Reads and returns next frame from mp4 file"""
         if not self._rtp_header or self._position >= end_time:
             return b''
-        return self._frame(reader, track_id, verbal)
+        return self._frame(reader, **kwargs)
 
     def to_bytes(self, marker, chunk, composition_time, verbal):
         """Returns chunk as bytestream, ready to be sent to socket"""
@@ -219,17 +219,18 @@ class Streamer:
         self._position = value
 
     @abc.abstractmethod
-    def _frame_to_bytes(self, reader, sample, composition_time, verbal) -> bytes:
+    def _frame_to_bytes(self, reader, sample, **kwargs) -> bytes:
         """Returns media sample as bytestream, ready to be sent to socket"""
         return b''
 
-    def _frame(self, reader, track_id, verbal):
+    def _frame(self, reader, **kwargs):
         ret = b''
         if self.trick_play.active and not self.trick_play.applicable:
             return ret
         current_time = time.time()
-        if current_time - self._last_frame_time_sec >= \
-                self._frame_duration_sec / self.trick_play.scale:
+        if current_time - self._last_frame_time_sec >= self._frame_duration_sec / self.trick_play.scale:
+            track_id = kwargs.get('key', 0)
+            verbal = kwargs.get('verbal', False)
             timescale = reader.media_header[track_id].timescale
             timescale_multiplier = reader.samples_info[track_id].timescale_multiplier
             sample = reader.next_sample(track_id, self.trick_play.forward)
@@ -248,7 +249,11 @@ class Streamer:
             if self.trick_play.active and not self.trick_play.forward:
                 if not reader.is_keyframe(sample):
                     return ret
-            ret = self._frame_to_bytes(reader, sample, composition_time >> (self.trick_play.scale - 1), verbal)
+            ret = self._frame_to_bytes(reader,
+                                       sample,
+                                       composition_time=composition_time >> (self.trick_play.scale - 1),
+                                       verbal=verbal,
+                                       sei=kwargs.get('sei', False))
         return ret
 
 
@@ -272,16 +277,20 @@ class AvcStreamer(Streamer):
         br.golomb_u()  # pic_parameter_set_id
         return br.golomb_u()
 
-    def _frame_to_bytes(self, reader, sample, composition_time, verbal):
+    def _frame_to_bytes(self, reader, sample, **kwargs):
         """Returns video sample as bytestream, ready to be sent to socket"""
         ret: list = []
+        composition_time = kwargs.get('composition_time', 0)
+        verbal = kwargs.get('verbal', False)
         for chunk in sample:
             if chunk[0] & 0x1f == 5:
                 self.parameters_sent = []
             ret.extend(self._parameters_to_bytes(reader, chunk, composition_time, verbal))
             for marker, data_unit in AvcFragmentMaker(chunk):
                 ret.append(self.to_bytes(marker, data_unit, composition_time, verbal))
-        #ret.append(self.to_bytes(1, bytes(Sei()), composition_time, verbal))
+        add_sei = kwargs.get('sei', False)
+        if add_sei:
+            ret.append(self.to_bytes(1, bytes(Sei()), composition_time, verbal))
         return b''.join(ret)
 
     def _parameters_to_bytes(self, reader, chunk, composition_time, verbal):
@@ -306,21 +315,21 @@ class HevcStreamer(Streamer):
         super().__init__(payload_type, TrickPlay(True))
         self.param_sets = param_sets
 
-    def _frame_to_bytes(self, reader, sample, composition_time, verbal):
+    def _frame_to_bytes(self, reader, sample, **kwargs):
         """Returns video sample as bytestream, ready to be sent to socket"""
         ret = b''
         for chunk in sample:
             for marker, data_unit in HevcFragmentMaker(chunk):
-                ret += self.to_bytes(marker, data_unit, composition_time, verbal)
+                ret += self.to_bytes(marker, data_unit, kwargs.get('composition_time', 0), kwargs.get('verbal', False))
         return ret
 
 
 class AudioStreamer(Streamer):
     """Streams audio data in RTP interleaved protocol"""
-    def _frame_to_bytes(self, reader, sample, composition_time, verbal):
+    def _frame_to_bytes(self, reader, sample, **kwargs):
         """Returns audio sample as bytestream, ready to be sent to socket"""
         ret = b''
         for chunk in sample:
             data_unit = AUHeaderSimpleSection(0, len(chunk)).to_bytes() + chunk
-            ret += self.to_bytes(1, data_unit, composition_time, verbal)
+            ret += self.to_bytes(1, data_unit, kwargs.get('composition_time', 0), kwargs.get('verbal', False))
         return ret
